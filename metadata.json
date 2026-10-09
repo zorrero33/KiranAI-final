@@ -1,0 +1,6 @@
+{
+  "name": "KiranAI — AI Operating System",
+  "description": "Personal AI Operating System for coding, project creation, research, document analysis, and autonomous workflow execution.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

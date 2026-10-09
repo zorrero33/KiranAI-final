@@ -1,0 +1,108 @@
+[
+  {
+    "id": "free",
+    "name": "Free Starter",
+    "pricePerMonthUSD": 0,
+    "pricePerYearUSD": 0,
+    "creditsPerMonth": 100,
+    "dailyMessageLimit": 25,
+    "allowedModels": [
+      "gemini-3.8-flash",
+      "gemini-3.1-flash-lite",
+      "ministral-8b-latest"
+    ],
+    "features": [
+      "25 mensajes diarios",
+      "Gemini 3.8 Flash & Ministral 8B",
+      "Google Web Search Grounding en tiempo real",
+      "IDE y Sandbox en navegador",
+      "Descarga y exportación de proyectos en ZIP",
+      "Cero datos ficticios"
+    ],
+    "maxProjects": 3,
+    "priorityRouting": false,
+    "isActive": true
+  },
+  {
+    "id": "starter",
+    "name": "Starter Plan",
+    "pricePerMonthUSD": 9,
+    "pricePerYearUSD": 85,
+    "creditsPerMonth": 1000,
+    "dailyMessageLimit": 150,
+    "allowedModels": [
+      "gemini-3.8-flash",
+      "gemini-3.1-flash-lite",
+      "ministral-8b-latest",
+      "codestral-latest"
+    ],
+    "features": [
+      "150 mensajes diarios (~1,000 créditos/mes)",
+      "Codestral y Mistral Large",
+      "Exportación de ZIP ilimitada",
+      "Historial de código extendido",
+      "Soporte estándar"
+    ],
+    "maxProjects": 15,
+    "priorityRouting": false,
+    "isActive": true
+  },
+  {
+    "id": "pro",
+    "name": "KiranIA Pro",
+    "pricePerMonthUSD": 20,
+    "pricePerYearUSD": 192,
+    "creditsPerMonth": 3000,
+    "dailyMessageLimit": 500,
+    "allowedModels": [
+      "gemini-3.8-flash",
+      "gemini-3.1-pro-preview",
+      "openai-main",
+      "claude-main",
+      "mistral-large-latest",
+      "codestral-latest"
+    ],
+    "features": [
+      "500 mensajes diarios (~3,000 créditos/mes)",
+      "Acceso a GPT-4o, Claude 3.5 Sonnet y Gemini 3.1 Pro",
+      "Model Arena: Comparativa simultánea de modelos",
+      "Prioridad de inferencia y failover inteligente",
+      "Memoria persistente de proyectos sin límites",
+      "Proyectos ilimitados"
+    ],
+    "maxProjects": 50,
+    "priorityRouting": true,
+    "stripePriceIdMonthly": "price_1UND8NPSl2G2R3kGlswdCNty",
+    "isActive": true
+  },
+  {
+    "id": "business",
+    "name": "Enterprise / Team",
+    "pricePerMonthUSD": 59,
+    "pricePerYearUSD": 588,
+    "creditsPerMonth": 15000,
+    "dailyMessageLimit": 10000,
+    "allowedModels": [
+      "gemini-3.8-flash",
+      "gemini-3.1-pro-preview",
+      "openai-main",
+      "claude-main",
+      "deepseek-main",
+      "mistral-large-latest",
+      "codestral-latest",
+      "openrouter-main"
+    ],
+    "features": [
+      "Mensajes y tokens ilimitados (~15,000 créditos/mes)",
+      "Acceso a modelos de razonamiento (DeepSeek R1, o1, Pro)",
+      "Panel de control de costes y telemetría de equipo",
+      "BYOK (Tus propias API keys corporativas)",
+      "SLA 99.9% y túneles proxy dedicados",
+      "Facturación corporativa y gestión de accesos (RBAC)"
+    ],
+    "maxProjects": 500,
+    "priorityRouting": true,
+    "stripePriceIdMonthly": "price_1UNDBsPSl2G2R3kGNBP0m8t6",
+    "isActive": true
+  }
+]

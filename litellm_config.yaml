@@ -1,0 +1,102 @@
+model_list:
+  # ============================================================================
+  # 1. OpenRouter (Primary High-Capacity Coding & Reasoning Gateway)
+  # ============================================================================
+  - model_name: openrouter-main
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.3-70b-instruct
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  # ============================================================================
+  # 2. Groq (Ultra-Low Latency ~500 T/s Inference)
+  # ============================================================================
+  - model_name: groq-main
+    litellm_params:
+      model: groq/qwen/qwen3.8-27b
+      api_key: os.environ/GROQ_API_KEY
+
+  - model_name: groq-gpt-oss
+    litellm_params:
+      model: groq/openai/gpt-oss-120b
+      api_key: os.environ/GROQ_API_KEY
+
+  # ============================================================================
+  # 3. Google Gemini (Google AI Studio)
+  # ============================================================================
+  - model_name: gemini-main
+    litellm_params:
+      model: gemini/gemini-3.8-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+  - model_name: gemini-3.8-flash
+    litellm_params:
+      model: gemini/gemini-3.8-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+  # ============================================================================
+  # 4. OpenAI
+  # ============================================================================
+  - model_name: openai-main
+    litellm_params:
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: openai-mini
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+  # ============================================================================
+  # 5. xAI (Grok)
+  # ============================================================================
+  - model_name: xai-main
+    litellm_params:
+      model: xai/grok-2-latest
+      api_key: os.environ/XAI_API_KEY
+
+  # ============================================================================
+  # 6. Mistral AI
+  # ============================================================================
+  - model_name: mistral-main
+    litellm_params:
+      model: mistral/mistral-large-latest
+      api_key: os.environ/MISTRAL_API_KEY
+
+  # ============================================================================
+  # 7. NVIDIA NIM
+  # ============================================================================
+  - model_name: nvidia-main
+    litellm_params:
+      model: openai/deepseek-ai/deepseek-v4.1-flash
+      api_base: https://integrate.api.nvidia.com/v1
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+
+# ============================================================================
+# Router, Resilient Fallbacks & Automatic Failover
+# ============================================================================
+router_settings:
+  routing_strategy: "latency-based-routing"
+  num_retries: 3
+  timeout: 180
+  fallbacks:
+    - gemini-main: ["openrouter-main", "groq-main", "mistral-main"]
+    - gemini-3.8-flash: ["openrouter-main", "groq-main"]
+    - openai-main: ["openrouter-main", "groq-main", "gemini-main"]
+    - xai-main: ["openrouter-main", "groq-main", "gemini-main"]
+    - mistral-main: ["openrouter-main", "groq-main", "gemini-main"]
+    - nvidia-main: ["openrouter-main", "groq-main"]
+    - openrouter-main: ["groq-main", "gemini-main"]
+    - groq-main: ["openrouter-main", "gemini-main"]
+
+# ============================================================================
+# Proxy General & Security Settings
+# ============================================================================
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  drop_params: true
+  store_model_in_db: false
+  disable_spend_logs: true
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false

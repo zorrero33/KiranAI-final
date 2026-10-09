@@ -1,0 +1,26 @@
+[
+  {
+    "userId": "usr_guest",
+    "balance": 96,
+    "totalPurchased": 0,
+    "totalConsumed": 4,
+    "reserved": 2,
+    "lastUpdated": 1791539591696
+  },
+  {
+    "userId": "usr_admin_master",
+    "balance": 15000,
+    "totalPurchased": 0,
+    "totalConsumed": 0,
+    "reserved": 0,
+    "lastUpdated": 1791469462983
+  },
+  {
+    "userId": "usr_1791379952082",
+    "balance": 99,
+    "totalPurchased": 0,
+    "totalConsumed": 1,
+    "reserved": 0,
+    "lastUpdated": 1791479839453
+  }
+]

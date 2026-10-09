@@ -1,0 +1,24 @@
+# ==============================================================================
+# KiranAI — robots.txt
+# Production URL: https://kiranai.web.app
+# ==============================================================================
+
+User-agent: *
+Allow: /
+Allow: /#home
+Allow: /#features
+Allow: /#models
+Allow: /#pricing
+Allow: /#faq
+Allow: /sitemap.xml
+
+# Protect internal APIs and private sessions
+Disallow: /api/
+Disallow: /api/*
+Disallow: /stripe/
+Disallow: /#admin
+Disallow: /#settings
+Disallow: /#checkout
+
+# Canonical XML Sitemap
+Sitemap: https://kiranai.web.app/sitemap.xml

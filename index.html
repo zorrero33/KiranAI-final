@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#09090e" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="KiranAI" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>KiranAI — Plataforma de Inteligencia Artificial | Todos tus modelos de IA</title>
+    <meta name="description" content="Plataforma integral de inteligencia artificial con acceso a los mejores modelos: chat inteligente, análisis, código y flujos de trabajo autónomos en una sola suite." />
+    <link rel="canonical" href="https://kiranai.web.app/" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+
+    <!-- OpenGraph Social Cards -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="KiranAI" />
+    <meta property="og:title" content="KiranAI — Plataforma de Inteligencia Artificial | Todos tus modelos de IA" />
+    <meta property="og:description" content="Plataforma integral de inteligencia artificial con acceso a los mejores modelos: chat inteligente, análisis, código y flujos de trabajo autónomos en una sola suite." />
+    <meta property="og:url" content="https://kiranai.web.app/" />
+    <meta property="og:image" content="https://kiranai.web.app/kiran-logo.png" />
+    <meta property="og:image:alt" content="KiranAI — Plataforma de Inteligencia Artificial" />
+    <meta property="og:locale" content="es_ES" />
+
+    <!-- Twitter / X Social Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="KiranAI — Plataforma de Inteligencia Artificial | Todos tus modelos de IA" />
+    <meta name="twitter:description" content="Plataforma integral de inteligencia artificial con acceso a los mejores modelos: chat inteligente, análisis, código y flujos de trabajo autónomos en una sola suite." />
+    <meta name="twitter:image" content="https://kiranai.web.app/kiran-logo.png" />
+
+    <!-- Schema.org Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://kiranai.web.app/#organization",
+          "name": "KiranAI",
+          "url": "https://kiranai.web.app/",
+          "logo": "https://kiranai.web.app/kiran-logo.png",
+          "description": "Plataforma SaaS integral de modelos de inteligencia artificial y orquestación multimodal."
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://kiranai.web.app/#website",
+          "url": "https://kiranai.web.app/",
+          "name": "KiranAI",
+          "publisher": {
+            "@id": "https://kiranai.web.app/#organization"
+          },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://kiranai.web.app/?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://kiranai.web.app/#application",
+          "name": "KiranAI",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "All (Web, iOS, Android, Desktop)",
+          "offers": [
+            {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD",
+              "name": "Plan Gratuito",
+              "description": "Acceso a modelos principales de IA, chat inteligente y herramientas básicas."
+            },
+            {
+              "@type": "Offer",
+              "price": "20.00",
+              "priceCurrency": "USD",
+              "name": "Plan Pro",
+              "description": "Modelos avanzados (Claude, GPT-4o, Gemini Pro), comparativas de modelos y generación intensiva."
+            }
+          ],
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.9",
+            "reviewCount": "128"
+          }
+        }
+      ]
+    }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-background text-foreground antialiased selection:bg-purple-600/30 selection:text-purple-200">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

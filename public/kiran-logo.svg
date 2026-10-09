@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220">
+  <defs>
+    <!-- Ribbon Gradient -->
+    <linearGradient id="kRibbon" x1="15%" y1="85%" x2="90%" y2="15%">
+      <stop offset="0%" stop-color="#161556" />
+      <stop offset="25%" stop-color="#3b2d9d" />
+      <stop offset="50%" stop-color="#7c3aed" />
+      <stop offset="75%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#00d8f6" />
+    </linearGradient>
+
+    <linearGradient id="kWingCyan" x1="30%" y1="70%" x2="100%" y2="10%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="45%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#00f2fe" />
+    </linearGradient>
+  </defs>
+
+  <!-- Kiran Emblem on the Left (scale and translated to fit height) -->
+  <g transform="translate(15, 10) scale(0.39)">
+    <!-- Left Vertical Stem -->
+    <path d="M 100,50 L 155,50 L 155,462 L 100,462 Z" fill="url(#kRibbon)" />
+
+    <!-- Upper Wing -->
+    <path d="M 155,256 C 185,210 230,150 295,102 C 350,62 405,50 448,50 C 448,78 428,115 394,148 C 338,202 272,256 215,298 L 155,256 Z" fill="url(#kWingCyan)" />
+
+    <!-- Lower Wing -->
+    <path d="M 155,256 C 185,302 230,362 295,410 C 350,450 405,462 448,462 C 448,434 428,397 394,364 C 338,310 272,256 215,214 L 155,256 Z" fill="url(#kRibbon)" />
+
+    <!-- Upper Diagonal Ribbon -->
+    <path d="M 155,372 L 332,198 C 352,178 368,166 384,156 L 350,128 C 332,142 312,162 290,184 L 155,316 Z" fill="url(#kWingCyan)" opacity="0.95" />
+
+    <!-- Lower Diagonal Ribbon -->
+    <path d="M 155,140 L 332,314 C 352,334 368,346 384,356 L 350,384 C 332,370 312,350 290,328 L 155,196 Z" fill="url(#kRibbon)" />
+
+    <!-- Core Diamond -->
+    <path d="M 242,256 L 282,216 L 322,256 L 282,296 Z" fill="url(#kWingCyan)" opacity="0.92" />
+  </g>
+
+  <!-- Wordmark "KiranAI" -->
+  <g transform="translate(215, 142)">
+    <!-- "Kiran" in bold modern geometric font -->
+    <text x="0" y="0" font-family="-apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', 'Segoe UI', Roboto, sans-serif" font-size="124" font-weight="800" letter-spacing="-2" fill="#ffffff">
+      Kiran
+    </text>
+    <!-- "AI" in bright cyan -->
+    <text x="325" y="0" font-family="-apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', 'Segoe UI', Roboto, sans-serif" font-size="124" font-weight="800" letter-spacing="-2" fill="#00d4ff">
+      AI
+    </text>
+  </g>
+</svg>

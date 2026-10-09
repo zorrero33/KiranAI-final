@@ -1,0 +1,102 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered KiranAI user profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "plan": { "type": "string", "enum": ["free", "pro", "business"] },
+        "createdAt": { "type": "number" },
+        "lastLoginAt": { "type": "number" }
+      },
+      "required": ["id", "email", "role", "plan", "createdAt"]
+    },
+    "UserCredits": {
+      "title": "UserCredits",
+      "description": "User message credits and daily limits",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "balance": { "type": "number" },
+        "planTier": { "type": "string", "enum": ["free", "pro", "business"] },
+        "dailyLimit": { "type": "number" },
+        "usedToday": { "type": "number" },
+        "lastResetDate": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["userId", "planTier", "dailyLimit", "usedToday", "lastResetDate"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "User stripe subscription status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "planId": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "trialing", "canceled", "past_due", "incomplete"] },
+        "stripeCustomerId": { "type": "string" },
+        "stripeSubscriptionId": { "type": "string" },
+        "currentPeriodEnd": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "planId", "status", "createdAt"]
+    },
+    "CreditTransaction": {
+      "title": "CreditTransaction",
+      "description": "Ledger of credits consumed or granted",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["deduct", "grant", "reset", "purchase"] },
+        "description": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "userId", "amount", "type", "timestamp"]
+    },
+    "AiRequestLog": {
+      "title": "AiRequestLog",
+      "description": "Telemetry and token log for AI model requests",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "modelId": { "type": "string" },
+        "provider": { "type": "string" },
+        "promptTokens": { "type": "number" },
+        "completionTokens": { "type": "number" },
+        "totalTokens": { "type": "number" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "userId", "modelId", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile document keyed by user ID"
+    },
+    "/credits/{userId}": {
+      "schema": "UserCredits",
+      "description": "Daily credit and limit document keyed by user ID"
+    },
+    "/subscriptions/{subId}": {
+      "schema": "Subscription",
+      "description": "Stripe subscriptions"
+    },
+    "/creditTransactions/{txId}": {
+      "schema": "CreditTransaction",
+      "description": "Transactions history"
+    },
+    "/aiRequests/{reqId}": {
+      "schema": "AiRequestLog",
+      "description": "AI execution logs"
+    }
+  }
+}

@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. KiranIA Application Service (Frontend SPA + Express Backend API)
+  # ----------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kirania-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Critical: Communication with LiteLLM uses Docker internal DNS service name 'litellm'
+      - LITELLM_URL=http://litellm:4000/v1
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-litellm-master-secret-key}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      litellm:
+        condition: service_healthy
+    networks:
+      - kirania-net
+
+  # ----------------------------------------------------------------------------
+  # 2. LiteLLM Gateway / Proxy (Universal AI Model Router)
+  # ----------------------------------------------------------------------------
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: kirania-litellm
+    restart: unless-stopped
+    ports:
+      # Optional: only expose to host if you need direct debugging
+      - "4000:4000"
+    volumes:
+      - ./litellm_config.yaml:/app/config.yaml:ro
+    command:
+      - "--config"
+      - "/app/config.yaml"
+      - "--port"
+      - "4000"
+      - "--host"
+      - "0.0.0.0"
+    environment:
+      # Master Authentication Token for Backend -> LiteLLM communication
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-litellm-master-secret-key}
+      # Provider API Keys passed securely via server-side environment
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - AZURE_API_KEY=${AZURE_API_KEY}
+      - AZURE_API_BASE=${AZURE_API_BASE}
+      - AZURE_API_VERSION=${AZURE_API_VERSION}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4000/health/liveliness || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - kirania-net
+
+networks:
+  kirania-net:
+    driver: bridge
