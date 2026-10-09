@@ -5,8 +5,9 @@ const config: CapacitorConfig = {
   appName: 'KiranAI',
   webDir: 'dist',
   server: {
- url: "https://ais-dev-6ygahfd6xl2xorvxmi7nyp-239401179834.europe-west2.run.app",
- url: "https://ais-dev-6ygahfd6xl2xorvxmi7nyp-239401179834.europe-west2.run.app",
+    // Load the live web build from the production origin so the native shell
+    // and the web app always share the same backend/API surface.
+    url: process.env.CAPACITOR_SERVER_URL || 'https://kiranai.web.app',
     androidScheme: 'https',
     cleartext: false,
   },

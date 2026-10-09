@@ -299,7 +299,7 @@ const DEFAULT_PROMPT_LIBRARY: PromptTemplate[] = [
     description: 'Generación de una aplicación completa lista para ejecutar con index.html modular.',
     prompt: 'Actúa como Senior Frontend Engineer. Crea una aplicación interactiva completa en un único o múltiples archivos formateados con <<<FILE: ruta>>>. Debe contar con diseño moderno dark mode, control de estado reactivo y cero dependencias externas no resueltas.',
     tags: ['React', 'Full-Stack', 'Interactive'],
-    suggestedModel: 'gemini-3.8-flash',
+    suggestedModel: 'gemini-3.5-flash',
     isFavorite: true,
   },
   {
@@ -384,7 +384,7 @@ export const StorageService = {
           id: 'conv_default',
           title: 'Sesión Principal de Inteligencia',
           messages: this.getChatMessages(),
-          modelId: 'gemini-3.8-flash',
+          modelId: 'gemini-3.5-flash',
           createdAt: Date.now(),
           updatedAt: Date.now(),
           isPinned: true,
@@ -461,11 +461,11 @@ export const StorageService = {
       if (!data) {
         const guest: UserAccount = {
           id: 'usr_guest',
-          name: 'Arquitecto Principal',
-          email: 'admin@kirania.internal',
-          role: 'admin',
-          currentPlan: 'pro',
-          createdAt: Date.now() - 86400000 * 7,
+          name: 'Invitado KiranAI',
+          email: 'guest@kiranai.com',
+          role: 'user',
+          currentPlan: 'free',
+          createdAt: Date.now(),
           apiKeyConfigured: true,
         };
         localStorage.setItem(STORAGE_KEYS.USER_ACCOUNT, JSON.stringify(guest));
@@ -475,10 +475,10 @@ export const StorageService = {
     } catch {
       return {
         id: 'usr_guest',
-        name: 'Arquitecto Principal',
-        email: 'admin@kirania.internal',
-        role: 'admin',
-        currentPlan: 'pro',
+        name: 'Invitado KiranAI',
+        email: 'guest@kiranai.com',
+        role: 'user',
+        currentPlan: 'free',
         createdAt: Date.now(),
       };
     }
@@ -499,7 +499,7 @@ export const StorageService = {
           theme: 'dark',
           detailLevel: 'balanced',
           autoApproveSafeActions: true,
-          activeModel: 'gemini-3.8-flash',
+          activeModel: 'gemini-3.5-flash',
           autoSpeakResponse: false,
         };
       }
@@ -512,7 +512,7 @@ export const StorageService = {
         theme: 'dark',
         detailLevel: 'balanced',
         autoApproveSafeActions: true,
-        activeModel: 'gemini-3.8-flash',
+        activeModel: 'gemini-3.5-flash',
         autoSpeakResponse: false,
       };
     }

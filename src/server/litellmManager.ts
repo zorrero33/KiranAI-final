@@ -1,10 +1,39 @@
 import { spawn, type ChildProcess, execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { GoogleGenAI } from '@google/genai';
+
+// When the operator does not set LITELLM_MASTER_KEY we generate a strong key at
+// runtime instead of shipping a well-known default. The proxy we spawn and this
+// client both use this value, so the gateway is never protected by a public
+// constant. An externally managed proxy must be configured with the same key.
+export const DEFAULT_LITELLM_MASTER_KEY = `sk-litellm-${crypto.randomBytes(24).toString('hex')}`;
+export const resolveLitellmMasterKey = (): string =>
+  process.env.LITELLM_MASTER_KEY || DEFAULT_LITELLM_MASTER_KEY;
+
+// A native provider call must never hang a request forever when a provider
+// stalls (an endpoint that accepts the connection but never answers). Bound
+// every provider/gateway call so the router can fail over instead of blocking.
+const PROVIDER_FETCH_TIMEOUT_MS = 45_000;
+function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  ms: number = PROVIDER_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(url, { ...init, signal: controller.signal }).finally(() =>
+    clearTimeout(timer),
+  );
+}
 
 export interface LiteLLMStatus {
   online: boolean;
+  // True when an HTTP call to the proxy succeeded. This is what `online` means;
+  // it is kept separate from key presence so the status never claims the gateway
+  // is reachable when it is not.
+  proxyReachable: boolean;
   url: string;
   managedLocally: boolean;
   models: string[];
@@ -100,10 +129,10 @@ async function callGeminiDirectStream(params: {
 }): Promise<{ stream: ReadableStream<Uint8Array>; usedModel: string }> {
   const ai = getGeminiClient();
   const { systemInstruction, contents } = convertMessagesToGemini(params.messages);
-  const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  const candidateModels = ['gemini-3.5-flash', 'gemini-3.5-flash-lite'];
 
   let responseStream: any = null;
-  let usedModelName = 'gemini-3.8-flash';
+  let usedModelName = 'gemini-3.5-flash';
   let lastErr: any = null;
 
   for (const modelCandidate of candidateModels) {
@@ -171,10 +200,10 @@ async function callGeminiDirectCompletion(params: {
 }): Promise<{ content: string; usedModel: string }> {
   const ai = getGeminiClient();
   const { systemInstruction, contents } = convertMessagesToGemini(params.messages);
-  const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  const candidateModels = ['gemini-3.5-flash', 'gemini-3.5-flash-lite'];
 
   let response: any = null;
-  let usedModelName = 'gemini-3.8-flash';
+  let usedModelName = 'gemini-3.5-flash';
   let lastErr: any = null;
 
   for (const modelCandidate of candidateModels) {
@@ -222,19 +251,36 @@ interface ProviderConfig {
 
 export interface ProviderHealth {
   quotaExhausted: boolean;
+  authFailed?: boolean;
   lastChecked: number;
   reason?: string;
 }
 
+// Populated only from real provider responses at runtime (e.g. a 429 or an
+// explicit "insufficient_quota"). Keyed by canonical provider slug (see
+// canonicalProviderKey) so discovery and routing look up the same entry.
 export const providerHealthMap = new Map<string, ProviderHealth>();
 
-// Pre-register known OpenAI quota exhaustion if configured in current runtime
-if (process.env.OPENAI_API_KEY) {
-  providerHealthMap.set('openai', {
-    quotaExhausted: true,
-    lastChecked: Date.now(),
-    reason: 'OpenAI 429 quota exhausted (credits balance 0)',
-  });
+/**
+ * Normalize a provider display name to the same slug used by the model
+ * catalog. Without this, routing stored health under e.g. "groq lpu" while
+ * discovery looked up "groq", so a real failure never surfaced.
+ */
+export function canonicalProviderKey(providerName: string): string {
+  const n = providerName.toLowerCase();
+  if (n.includes('google') || n.includes('gemini')) return 'google';
+  if (n.includes('openai')) return 'openai';
+  if (n.includes('anthropic')) return 'anthropic';
+  if (n.includes('deepseek')) return 'deepseek';
+  if (n.includes('groq')) return 'groq';
+  if (n.includes('mistral')) return 'mistral';
+  if (n.includes('xai') || n.includes('grok')) return 'xai';
+  if (n.includes('openrouter')) return 'openrouter';
+  if (n.includes('nvidia')) return 'nvidia';
+  if (n.includes('hugging')) return 'huggingface';
+  if (n.includes('cohere')) return 'cohere';
+  if (n.includes('meta')) return 'meta';
+  return n;
 }
 
 function resolveProviderConfig(modelId: string): ProviderConfig | null {
@@ -269,7 +315,7 @@ function resolveProviderConfig(modelId: string): ProviderConfig | null {
   // 3. OpenRouter
   if (lower.startsWith('openrouter') || lower.includes('/') || lower.endsWith(':free')) {
     if (process.env.OPENROUTER_API_KEY) {
-      const orModel = lower === 'openrouter-main' ? 'inclusionai/ling-3.1-flash' : modelId;
+      const orModel = lower === 'openrouter-main' ? 'meta-llama/llama-3.3-70b-instruct' : modelId;
       return {
         endpoint: 'https://openrouter.ai/api/v1/chat/completions',
         apiKey: process.env.OPENROUTER_API_KEY,
@@ -299,7 +345,7 @@ function resolveProviderConfig(modelId: string): ProviderConfig | null {
       return {
         endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
         apiKey: nKey,
-        model: lower === 'nvidia-main' ? 'meta/llama-3.3-70b-instruct' : modelId,
+        model: lower === 'nvidia-main' ? 'meta/llama-3.2-90b-vision-instruct' : modelId,
         providerName: 'NVIDIA NIM',
       };
     }
@@ -335,7 +381,7 @@ export class LiteLLMManager {
       url = url.replace('://litellm:', '://127.0.0.1:');
     }
     this.baseUrl = url;
-    this.masterKey = process.env.LITELLM_MASTER_KEY || 'sk-litellm-master-secret-key';
+    this.masterKey = resolveLitellmMasterKey();
   }
 
   public static getInstance(): LiteLLMManager {
@@ -554,7 +600,11 @@ export class LiteLLMManager {
     const hasGeminiKey = !!process.env.GEMINI_API_KEY;
 
     return {
-      online: isHealthy || hasGeminiKey,
+      // The proxy is only "online" when an HTTP probe actually succeeded.
+      // A configured Gemini key does not make the gateway reachable, so it must
+      // never be OR-ed into this flag (that would be a dishonest status).
+      online: isHealthy,
+      proxyReachable: isHealthy,
       url: this.baseUrl,
       managedLocally: !!this.process,
       models: this.availableModels.length > 0 ? this.availableModels : [
@@ -579,7 +629,7 @@ export class LiteLLMManager {
         huggingface: !!(process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN),
         azure: !!process.env.AZURE_API_KEY,
       },
-      masterKeyConfigured: !!this.masterKey,
+      masterKeyConfigured: !!process.env.LITELLM_MASTER_KEY,
     };
   }
 
@@ -597,7 +647,7 @@ export class LiteLLMManager {
     if (this.isOnline) {
       try {
         const targetUrl = `${this.baseUrl}/chat/completions`;
-        const response = await fetch(targetUrl, {
+        const response = await fetchWithTimeout(targetUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -626,21 +676,21 @@ export class LiteLLMManager {
     // B. Direct Provider Routing for non-Gemini models (Groq, Mistral, OpenRouter, OpenAI, etc.)
     const providerConfig = resolveProviderConfig(params.model);
     if (providerConfig) {
-      const pKey = providerConfig.providerName.toLowerCase();
+      const pKey = canonicalProviderKey(providerConfig.providerName);
       const health = providerHealthMap.get(pKey);
-      const isCircuitOpen = health?.quotaExhausted && Date.now() - health.lastChecked < 600000;
+      const isCircuitOpen = (health?.quotaExhausted || health?.authFailed) && Date.now() - health.lastChecked < 600000;
 
       if (isCircuitOpen) {
         if (params.onFallback) {
           params.onFallback({
             fromModel: params.model,
-            toModel: 'gemini-3.8-flash',
-            reason: `${providerConfig.providerName} sin créditos disponibles. Failover transparente a Google GenAI (Gemini 3.8 Flash).`,
+            toModel: 'gemini-3.5-flash',
+            reason: `${providerConfig.providerName} sin créditos disponibles. Failover transparente a Google GenAI (Gemini 3.5 Flash).`,
           });
         }
       } else {
         try {
-          const response = await fetch(providerConfig.endpoint, {
+          const response = await fetchWithTimeout(providerConfig.endpoint, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -656,7 +706,7 @@ export class LiteLLMManager {
           });
 
           if (response.ok && response.body) {
-            if (health?.quotaExhausted) {
+            if (health?.quotaExhausted || health?.authFailed) {
               providerHealthMap.delete(pKey);
             }
             return {
@@ -679,14 +729,25 @@ export class LiteLLMManager {
             errText.includes('insufficient_quota') ||
             errText.includes('credits remaining') ||
             errText.includes('quota');
+          // A rejected key will keep failing until it is rotated, so trip the
+          // breaker for it too instead of retrying on every request.
+          const isAuthFailure =
+            response.status === 401 ||
+            response.status === 403 ||
+            errText.includes('invalid_api_key') ||
+            errText.includes('Invalid API Key');
 
-          if (isQuota) {
+          if (isQuota || isAuthFailure) {
             providerHealthMap.set(pKey, {
-              quotaExhausted: true,
+              quotaExhausted: isQuota,
+              authFailed: isAuthFailure,
               lastChecked: Date.now(),
               reason: errMsg,
             });
-            console.log(`[LiteLLM Gateway] Provider ${providerConfig.providerName} cuota agotada. Activando auto-failover resiliente a Gemini 3.8 Flash.`);
+            const cause = isAuthFailure
+              ? `clave rechazada (${response.status})`
+              : 'cuota agotada';
+            console.log(`[LiteLLM Gateway] ${providerConfig.providerName} ${cause}. Auto-failover a Gemini 3.5 Flash durante 10 minutos.`);
           } else {
             console.warn(`[LiteLLM Gateway] Provider error for ${params.model}:`, errMsg);
           }
@@ -694,9 +755,11 @@ export class LiteLLMManager {
           if (params.onFallback) {
             params.onFallback({
               fromModel: params.model,
-              toModel: 'gemini-3.8-flash',
+              toModel: 'gemini-3.5-flash',
               reason: isQuota
-                ? `${providerConfig.providerName} sin créditos disponibles. Redirigido a Google GenAI (Gemini 3.8 Flash).`
+                ? `${providerConfig.providerName} sin créditos disponibles. Redirigido a Google GenAI (Gemini 3.5 Flash).`
+                : isAuthFailure
+                ? `${providerConfig.providerName} clave rechazada (${response.status}). Redirigido a Google GenAI (Gemini 3.5 Flash).`
                 : `${providerConfig.providerName} no disponible: ${errMsg}. Activando Google GenAI.`,
             });
           }
@@ -705,7 +768,7 @@ export class LiteLLMManager {
           if (params.onFallback) {
             params.onFallback({
               fromModel: params.model,
-              toModel: 'gemini-3.8-flash',
+              toModel: 'gemini-3.5-flash',
               reason: `Fallo de conexión con ${providerConfig.providerName}. Activando Google GenAI.`,
             });
           }
@@ -715,10 +778,10 @@ export class LiteLLMManager {
 
     // C. Default / Primary Failover: Google GenAI
     if (process.env.GEMINI_API_KEY) {
-      if (params.onFallback && params.model !== 'gemini-3.8-flash' && params.model !== 'gemini-main' && !providerConfig) {
+      if (params.onFallback && params.model !== 'gemini-3.5-flash' && params.model !== 'gemini-main' && !providerConfig) {
         params.onFallback({
           fromModel: params.model,
-          toModel: 'gemini-3.8-flash',
+          toModel: 'gemini-3.5-flash',
           reason: 'Enrutado a Google GenAI (Motor Principal)',
         });
       }
@@ -739,7 +802,7 @@ export class LiteLLMManager {
     if (this.isOnline) {
       try {
         const targetUrl = `${this.baseUrl}/chat/completions`;
-        const response = await fetch(targetUrl, {
+        const response = await fetchWithTimeout(targetUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -767,21 +830,22 @@ export class LiteLLMManager {
     // B. Direct Provider Routing
     const providerConfig = resolveProviderConfig(params.model);
     if (providerConfig) {
-      const pKey = providerConfig.providerName.toLowerCase();
+      const pKey = canonicalProviderKey(providerConfig.providerName);
       const health = providerHealthMap.get(pKey);
-      const isCircuitOpen = health?.quotaExhausted && Date.now() - health.lastChecked < 600000;
+      const isCircuitOpen = (health?.quotaExhausted || health?.authFailed) && Date.now() - health.lastChecked < 600000;
 
       if (isCircuitOpen) {
         if (params.onFallback) {
+          const cause = health?.authFailed ? 'clave rechazada' : 'cuota agotada';
           params.onFallback({
             fromModel: params.model,
-            toModel: 'gemini-3.8-flash',
-            reason: `${providerConfig.providerName} cuota agotada. Redirigido automáticamente a Google GenAI.`,
+            toModel: 'gemini-3.5-flash',
+            reason: `${providerConfig.providerName} ${cause}. Redirigido automáticamente a Google GenAI.`,
           });
         }
       } else {
         try {
-          const response = await fetch(providerConfig.endpoint, {
+          const response = await fetchWithTimeout(providerConfig.endpoint, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -797,7 +861,7 @@ export class LiteLLMManager {
           });
 
           if (response.ok) {
-            if (health?.quotaExhausted) {
+            if (health?.quotaExhausted || health?.authFailed) {
               providerHealthMap.delete(pKey);
             }
             const data = (await response.json()) as any;
@@ -811,14 +875,21 @@ export class LiteLLMManager {
             errText.includes('insufficient_quota') ||
             errText.includes('credits remaining') ||
             errText.includes('quota');
+          const isAuthFailure =
+            response.status === 401 ||
+            response.status === 403 ||
+            errText.includes('invalid_api_key') ||
+            errText.includes('Invalid API Key');
 
-          if (isQuota) {
+          if (isQuota || isAuthFailure) {
             providerHealthMap.set(pKey, {
-              quotaExhausted: true,
+              quotaExhausted: isQuota,
+              authFailed: isAuthFailure,
               lastChecked: Date.now(),
-              reason: 'Quota exhausted',
+              reason: isAuthFailure ? `auth rejected (${response.status})` : 'quota exhausted',
             });
-            console.log(`[LiteLLM Gateway] Provider ${providerConfig.providerName} cuota agotada. Failover automático a Gemini.`);
+            const cause = isAuthFailure ? `clave rechazada (${response.status})` : 'cuota agotada';
+            console.log(`[LiteLLM Gateway] ${providerConfig.providerName} ${cause}. Failover automático a Gemini.`);
           } else {
             console.warn(`[LiteLLM Gateway] Completion provider error:`, errText);
           }
@@ -826,7 +897,7 @@ export class LiteLLMManager {
           if (params.onFallback) {
             params.onFallback({
               fromModel: params.model,
-              toModel: 'gemini-3.8-flash',
+              toModel: 'gemini-3.5-flash',
               reason: `${providerConfig.providerName} error de cuota/acceso. Redirigiendo a Google GenAI.`,
             });
           }
@@ -838,10 +909,10 @@ export class LiteLLMManager {
 
     // C. Default / Primary Failover: Google GenAI
     if (process.env.GEMINI_API_KEY) {
-      if (params.onFallback && params.model !== 'gemini-3.8-flash' && params.model !== 'gemini-main' && !providerConfig) {
+      if (params.onFallback && params.model !== 'gemini-3.5-flash' && params.model !== 'gemini-main' && !providerConfig) {
         params.onFallback({
           fromModel: params.model,
-          toModel: 'gemini-3.8-flash',
+          toModel: 'gemini-3.5-flash',
           reason: 'Enrutado a Google GenAI (Motor Principal)',
         });
       }

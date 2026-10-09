@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Agent scratch space (browser recordings, temp scripts)
+.agent_tmp/
+
+# Runtime persistence store (local fallback). Contains user records, password
+# hashes and credit ledgers — never commit real data.
+data/

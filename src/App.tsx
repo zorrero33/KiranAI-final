@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   ViewMode,
   Project,
@@ -19,6 +19,7 @@ import {
   fetchDiscoveredModels,
   triggerModelDiscovery,
   fetchUserUsage,
+  fetchCurrentUser,
   streamChat,
   generateProjectScaffold,
   analyzeFileContent,
@@ -70,10 +71,10 @@ export default function App() {
   const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
 
   // Models & Gateway
-  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.8-flash');
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.5-flash');
   const [supportedModels, setSupportedModels] = useState<ModelOption[]>([]);
   const [isModelCatalogOpen, setIsModelCatalogOpen] = useState<boolean>(false);
-  const [compareInitialModels, setCompareInitialModels] = useState<string[]>(['gemini-3.8-flash', 'ministral-8b-latest']);
+  const [compareInitialModels, setCompareInitialModels] = useState<string[]>(['gemini-3.5-flash', 'ministral-8b-latest']);
   const [lastFallbackInfo, setLastFallbackInfo] = useState<{
     fromModel: string;
     toModel: string;
@@ -89,6 +90,7 @@ export default function App() {
   const [webSearchActive, setWebSearchActive] = useState<boolean>(true);
   const [autoApproveSafe, setAutoApproveSafe] = useState<boolean>(true);
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+  const abortStreamRef = useRef<null | (() => void)>(null);
   const [hasApiKey, setHasApiKey] = useState<boolean>(true);
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState<boolean>(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
@@ -234,7 +236,7 @@ console.log('Kiran AI App inicializada correctamente.');`,
 
     const prefs = StorageService.getUserPreferences();
     setUserPrefs(prefs);
-    setSelectedModel(prefs.activeModel || 'gemini-3.8-flash');
+    setSelectedModel(prefs.activeModel || 'gemini-3.5-flash');
     setAutoApproveSafe(prefs.autoApproveSafeActions ?? true);
     if (prefs.theme) {
       setIsDark(prefs.theme === 'dark');
@@ -254,6 +256,25 @@ console.log('Kiran AI App inicializada correctamente.');`,
         }
       })
       .catch((err) => console.error('Model discovery load error:', err));
+
+    // Restore a verified server session if a token is present.
+    fetchCurrentUser()
+      .then((serverUser) => {
+        if (serverUser) {
+          const account: UserAccount = {
+            id: serverUser.id,
+            name: serverUser.name || serverUser.email.split('@')[0],
+            email: serverUser.email,
+            role: serverUser.role,
+            currentPlan: serverUser.plan as UserAccount['currentPlan'],
+            createdAt: Date.now(),
+            apiKeyConfigured: true,
+          };
+          setUserAccount(account);
+          StorageService.saveUserAccount(account);
+        }
+      })
+      .catch(() => {});
 
     refreshUsage();
   }, []);
@@ -369,6 +390,7 @@ console.log('Kiran AI App inicializada correctamente.');`,
   // Main Chat Send Handler
   const handleSendMessage = async (content: string, files: AttachedFile[], personaId: string) => {
     if (!content.trim() && files.length === 0) return;
+    if (abortStreamRef.current) return; // a generation is already in flight
 
     const timestamp = Date.now();
     const userMsgId = `user_${timestamp}`;
@@ -423,7 +445,7 @@ console.log('Kiran AI App inicializada correctamente.');`,
     });
 
     try {
-      await streamChat({
+      const abort = await streamChat({
         messages: validHistory,
         model: selectedModel,
         systemInstruction: userMemories ? `Directivas activas:\n${userMemories}` : undefined,
@@ -469,6 +491,7 @@ console.log('Kiran AI App inicializada correctamente.');`,
         },
         onDone: () => {
           refreshUsage();
+          abortStreamRef.current = null;
 
           if (hadError && !accumulatedContent) {
             setIsAiLoading(false);
@@ -520,10 +543,22 @@ console.log('Kiran AI App inicializada correctamente.');`,
           setIsAiLoading(false);
         },
       });
+
+      abortStreamRef.current = abort;
     } catch (err: any) {
       console.error('Chat error:', err);
+      abortStreamRef.current = null;
       setIsAiLoading(false);
     }
+  };
+
+  const handleCancelGeneration = () => {
+    if (abortStreamRef.current) {
+      abortStreamRef.current();
+      abortStreamRef.current = null;
+    }
+    setIsAiLoading(false);
+    notify('Generación cancelada.', 'info');
   };
 
   const handleCreateProject = (newProject: Project) => {
@@ -858,6 +893,7 @@ console.log('Kiran AI App inicializada correctamente.');`,
                 messages={messages}
                 onSendMessage={handleSendMessage}
                 isLoading={isAiLoading}
+                onCancelGeneration={handleCancelGeneration}
                 webSearchActive={webSearchActive}
                 onToggleWebSearch={() => setWebSearchActive((v) => !v)}
                 activeProject={activeProject}

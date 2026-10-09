@@ -25,11 +25,11 @@ interface ModelCompareViewProps {
 
 export const ModelCompareView: React.FC<ModelCompareViewProps> = ({
   models,
-  initialSelectedModels = ['gemini-3.8-flash', 'ministral-8b-latest'],
+  initialSelectedModels = ['gemini-3.5-flash', 'ministral-8b-latest'],
   onSelectWinningModel,
 }) => {
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>(
-    initialSelectedModels.length > 0 ? initialSelectedModels.slice(0, 3) : ['gemini-3.8-flash', 'ministral-8b-latest']
+    initialSelectedModels.length > 0 ? initialSelectedModels.slice(0, 3) : ['gemini-3.5-flash', 'ministral-8b-latest']
   );
   const [promptInput, setPromptInput] = useState('');
   const [systemInstruction, setSystemInstruction] = useState('');

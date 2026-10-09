@@ -78,23 +78,52 @@ npm run dev
 
 El servidor estará disponible en `http://localhost:3000`.
 
+### Pruebas
+Con el servidor en marcha (`npm run dev` o `npm start`):
+```bash
+npm test          # suite de integración (tests/production.test.mjs)
+npm run lint      # comprobación de tipos (tsc --noEmit)
+npm run build     # build de producción (Vite)
+```
+
+### Administración
+El rol `admin` se concede **solo** a los correos listados en `ADMIN_EMAILS`
+(separados por comas). No hay correo ni contraseña por defecto. Registra la cuenta
+con normalidad y añade su correo a `ADMIN_EMAILS` para promoverla.
+
 ---
 
 ## 🐳 Despliegue con Docker y Docker Compose
 
 ### Levantar con Docker Compose (Node.js + LiteLLM Daemon)
 ```bash
+cp .env.example .env      # edita .env con tus claves reales
 docker compose up --build
 ```
 - App Frontend/Backend: `http://localhost:3000`
-- LiteLLM Universal Proxy: `http://localhost:4000`
+- LiteLLM Universal Proxy: interno (puerto `4000`, no publicado al host por seguridad).
+  Para depurarlo en local, añade `ports: ["4000:4000"]` al servicio `litellm`.
 
-### Producción (Cloud Run / Contenedor Standalone)
+`docker-compose.yml` exige `LITELLM_MASTER_KEY` (sin valor por defecto débil): el
+mismo valor debe estar en `.env` y en `litellm_config.yaml`. Los datos de
+persistencia local se guardan en el volumen nombrado `kirania-data`.
+
+### Imagen única (Cloud Run / contenedor standalone)
 ```bash
+docker build -t kirania .
+docker run -p 3000:3000 --env-file .env kirania
+```
+El `Dockerfile` es multi-etapa: compila el SPA con Vite y ejecuta `server.ts` con
+el stripping de TypeScript nativo de Node 24 (sin paso de compilación del servidor).
+El puerto se toma de la variable `PORT` del entorno; nunca se sobreescribe desde `.env`.
+
+### Ejecución local sin Docker
+```bash
+npm ci
 npm run build
 npm start
 ```
-El script `"start": "node server.ts"` inicia inmediatamente Express en el puerto 3000 y sirve los assets compilados de `dist/`.
+`"start": "node server.ts"` inicia Express y sirve los assets compilados de `dist/`.
 
 ---
 

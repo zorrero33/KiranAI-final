@@ -28,16 +28,104 @@ export interface SystemStatusResponse {
 }
 
 export function getApiBaseUrl(): string {
-  if (typeof window !== 'undefined') {
-    if (window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com')) {
-      return 'https://ais-pre-6ygahfd6xl2xorvxmi7nyp-239401179834.europe-west2.run.app';
-    }
-  }
+  // Same-origin by default so the Vite dev proxy and the production Express
+  // server (which serves the SPA) both route /api correctly. A cross-origin
+  // backend can still be supplied explicitly via VITE_API_BASE_URL.
+  const configured = (import.meta as any)?.env?.VITE_API_BASE_URL as string | undefined;
+  if (configured) return configured.replace(/\/+$/, '');
   return '';
 }
 
+const SESSION_TOKEN_KEY = 'kiranai_session_token_v1';
+
+export function getSessionToken(): string | null {
+  try {
+    return localStorage.getItem(SESSION_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setSessionToken(token: string | null) {
+  try {
+    if (token) localStorage.setItem(SESSION_TOKEN_KEY, token);
+    else localStorage.removeItem(SESSION_TOKEN_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** Authenticated fetch helper that attaches the session bearer token when present. */
+export async function authFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const token = getSessionToken();
+  const headers = new Headers(init.headers || {});
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  return fetch(input, { ...init, headers });
+}
+
+export interface AuthResult {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: 'user' | 'admin';
+    plan: string;
+    subscriptionStatus: string;
+    avatarUrl?: string;
+    preferences?: Record<string, any>;
+  };
+  token: string;
+}
+
+export async function loginWithEmail(email: string, password: string): Promise<AuthResult> {
+  const res = await authFetch(`${getApiBaseUrl()}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'No se pudo iniciar sesión.');
+  setSessionToken(data.token);
+  return data;
+}
+
+export async function registerWithEmail(email: string, password: string, name?: string): Promise<AuthResult> {
+  const res = await authFetch(`${getApiBaseUrl()}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, name }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'No se pudo crear la cuenta.');
+  setSessionToken(data.token);
+  return data;
+}
+
+export async function loginWithGoogle(idToken: string): Promise<AuthResult> {
+  const res = await authFetch(`${getApiBaseUrl()}/api/auth/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'No se pudo autenticar con Google.');
+  setSessionToken(data.token);
+  return data;
+}
+
+export async function fetchCurrentUser(): Promise<AuthResult['user'] | null> {
+  const res = await authFetch(`${getApiBaseUrl()}/api/auth/me`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.user || null;
+}
+
+export function logout() {
+  setSessionToken(null);
+}
+
 export async function fetchSystemStatus(): Promise<SystemStatusResponse> {
-  const res = await fetch(`${getApiBaseUrl()}/api/status`);
+  const res = await authFetch(`${getApiBaseUrl()}/api/status`);
   if (!res.ok) {
     throw new Error(`Failed to fetch system status: ${res.statusText}`);
   }
@@ -78,7 +166,7 @@ export async function streamChat({
   const controller = new AbortController();
 
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/chat`, {
+    const response = await authFetch(`${getApiBaseUrl()}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -227,7 +315,7 @@ export async function generateProjectScaffold(params: {
   model: string;
   features?: string[];
 }): Promise<{ rawOutput: string; files: ProjectFile[]; count: number }> {
-  const response = await fetch(`${getApiBaseUrl()}/api/generate-project`, {
+  const response = await authFetch(`${getApiBaseUrl()}/api/generate-project`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
@@ -260,7 +348,7 @@ export async function analyzeFileContent(params: {
   task: 'audit' | 'solve' | 'explain' | 'optimize';
   userQuestion?: string;
 }): Promise<{ analysis: string; fileName: string; timestamp: string }> {
-  const response = await fetch(`${getApiBaseUrl()}/api/analyze-file`, {
+  const response = await authFetch(`${getApiBaseUrl()}/api/analyze-file`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
@@ -283,7 +371,7 @@ export async function fetchDiscoveredModels(): Promise<{
   activeProviders: Record<string, boolean>;
   timestamp: number;
 }> {
-  const res = await fetch(`${getApiBaseUrl()}/api/models`);
+  const res = await authFetch(`${getApiBaseUrl()}/api/models`);
   if (!res.ok) {
     throw new Error('Error al consultar el catálogo de modelos.');
   }
@@ -297,7 +385,17 @@ export async function fetchDiscoveredModels(): Promise<{
       provider: m.provider,
       family: m.family,
       description: m.description,
-      tier: m.status === 'active' ? 'Disponible (Activo)' : 'Configurado (LiteLLM)',
+      status: m.status,
+      tier:
+        m.status === 'active'
+          ? 'Disponible'
+          : m.status === 'key_required'
+          ? 'Requiere clave de proveedor'
+          : m.status === 'unavailable'
+          ? 'No disponible'
+          : m.status === 'deprecated'
+          ? 'Obsoleto'
+          : 'Configurado (LiteLLM)',
       isPaid: m.pricing?.isFreeTierAvailable === false,
       capabilities: Object.entries(m.capabilities || {})
         .filter(([_, enabled]) => Boolean(enabled))
@@ -323,7 +421,7 @@ export async function fetchDiscoveredModels(): Promise<{
 }
 
 export async function triggerModelDiscovery(): Promise<any> {
-  const res = await fetch(`${getApiBaseUrl()}/api/models/discover`, { method: 'POST' });
+  const res = await authFetch(`${getApiBaseUrl()}/api/models/discover`, { method: 'POST' });
   if (!res.ok) {
     throw new Error('Error al sincronizar modelos.');
   }
@@ -342,7 +440,7 @@ export async function compareModels(params: {
   results: ComparisonResult[];
   totalDurationMs: number;
 }> {
-  const res = await fetch(`${getApiBaseUrl()}/api/chat/compare`, {
+  const res = await authFetch(`${getApiBaseUrl()}/api/chat/compare`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
@@ -358,7 +456,7 @@ export async function compareModels(params: {
  * Usage & Smart Paywall API
  */
 export async function fetchUserUsage(userId: string = 'usr_guest'): Promise<UsageQuotaInfo> {
-  const res = await fetch(`${getApiBaseUrl()}/api/usage?userId=${encodeURIComponent(userId)}`);
+  const res = await authFetch(`${getApiBaseUrl()}/api/usage?userId=${encodeURIComponent(userId)}`);
   if (!res.ok) {
     throw new Error('Error al consultar uso de cuota.');
   }
@@ -369,7 +467,7 @@ export async function fetchUserUsage(userId: string = 'usr_guest'): Promise<Usag
  * Billing & Checkout API
  */
 export async function fetchBillingPlans(): Promise<{ plans: any[]; currency: string; stripeConfigured: boolean }> {
-  const res = await fetch(`${getApiBaseUrl()}/api/billing/plans`);
+  const res = await authFetch(`${getApiBaseUrl()}/api/billing/plans`);
   if (!res.ok) {
     throw new Error('Error al consultar planes de facturación.');
   }
@@ -384,7 +482,7 @@ export async function createBillingCheckout(planId: string, userId: string = 'us
   message?: string;
   stripeConfigured: boolean;
 }> {
-  const res = await fetch(`${getApiBaseUrl()}/api/billing/checkout`, {
+  const res = await authFetch(`${getApiBaseUrl()}/api/billing/checkout`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ planId, userId }),
@@ -397,7 +495,7 @@ export async function createBillingCheckout(planId: string, userId: string = 'us
 }
 
 export async function fetchCustomerPortal(userId: string = 'usr_guest'): Promise<{ url: string }> {
-  const res = await fetch(`${getApiBaseUrl()}/api/billing/portal`, {
+  const res = await authFetch(`${getApiBaseUrl()}/api/billing/portal`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId }),
@@ -428,7 +526,7 @@ export async function fetchProviderAudit(): Promise<{
     hasPriceIdBusiness: boolean;
   };
 }> {
-  const res = await fetch(`${getApiBaseUrl()}/api/providers/audit`);
+  const res = await authFetch(`${getApiBaseUrl()}/api/providers/audit`);
   if (!res.ok) {
     throw new Error('Error al auditar proveedores de IA.');
   }
@@ -452,7 +550,7 @@ export async function fetchUserCredits(userId: string = 'usr_guest'): Promise<{
     notes?: string;
   }>;
 }> {
-  const res = await fetch(`${getApiBaseUrl()}/api/credits?userId=${encodeURIComponent(userId)}`);
+  const res = await authFetch(`${getApiBaseUrl()}/api/credits?userId=${encodeURIComponent(userId)}`);
   if (!res.ok) {
     throw new Error('Error al consultar saldo de créditos.');
   }
@@ -469,7 +567,7 @@ export async function fetchAdminMetrics(): Promise<{
   maintenanceMode: boolean;
   systemAnnouncement: string;
 }> {
-  const res = await fetch(`${getApiBaseUrl()}/api/admin/metrics`);
+  const res = await authFetch(`${getApiBaseUrl()}/api/admin/metrics`);
   if (!res.ok) {
     throw new Error('Error al consultar métricas de administración.');
   }

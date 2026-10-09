@@ -130,6 +130,8 @@ export interface ModelOption {
   provider?: string;
   family?: string;
   description?: string;
+  /** Availability state reported by the discovery engine. */
+  status?: 'active' | 'configured' | 'key_required' | 'unavailable' | 'deprecated';
   isPaid: boolean;
   capabilities: string[];
   contextWindow?: number;

@@ -12,7 +12,7 @@ model_list:
   # ============================================================================
   - model_name: groq-main
     litellm_params:
-      model: groq/qwen/qwen3.8-27b
+      model: groq/llama-3.3-70b-versatile
       api_key: os.environ/GROQ_API_KEY
 
   - model_name: groq-gpt-oss
@@ -25,12 +25,17 @@ model_list:
   # ============================================================================
   - model_name: gemini-main
     litellm_params:
-      model: gemini/gemini-3.8-flash
+      model: gemini/gemini-3.5-flash
       api_key: os.environ/GEMINI_API_KEY
 
-  - model_name: gemini-3.8-flash
+  - model_name: gemini-3.5-flash
     litellm_params:
-      model: gemini/gemini-3.8-flash
+      model: gemini/gemini-3.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+  - model_name: gemini-3.1-pro-preview
+    litellm_params:
+      model: gemini/gemini-3.1-pro-preview
       api_key: os.environ/GEMINI_API_KEY
 
   # ============================================================================
@@ -47,7 +52,23 @@ model_list:
       api_key: os.environ/OPENAI_API_KEY
 
   # ============================================================================
-  # 5. xAI (Grok)
+  # 5. Anthropic Claude
+  # ============================================================================
+  - model_name: claude-main
+    litellm_params:
+      model: anthropic/claude-3-5-sonnet-20241022
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # ============================================================================
+  # 6. DeepSeek
+  # ============================================================================
+  - model_name: deepseek-main
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+
+  # ============================================================================
+  # 7. xAI (Grok)
   # ============================================================================
   - model_name: xai-main
     litellm_params:
@@ -55,19 +76,19 @@ model_list:
       api_key: os.environ/XAI_API_KEY
 
   # ============================================================================
-  # 6. Mistral AI
+  # 8. Mistral AI
   # ============================================================================
   - model_name: mistral-main
     litellm_params:
-      model: mistral/mistral-large-latest
+      model: mistral/ministral-8b-latest
       api_key: os.environ/MISTRAL_API_KEY
 
   # ============================================================================
-  # 7. NVIDIA NIM
+  # 9. NVIDIA NIM (OpenAI-compatible endpoint)
   # ============================================================================
   - model_name: nvidia-main
     litellm_params:
-      model: openai/deepseek-ai/deepseek-v4.1-flash
+      model: openai/meta/llama-3.2-90b-vision-instruct
       api_base: https://integrate.api.nvidia.com/v1
       api_key: os.environ/NVIDIA_NIM_API_KEY
 
@@ -80,8 +101,12 @@ router_settings:
   timeout: 180
   fallbacks:
     - gemini-main: ["openrouter-main", "groq-main", "mistral-main"]
-    - gemini-3.8-flash: ["openrouter-main", "groq-main"]
+    - gemini-3.5-flash: ["openrouter-main", "groq-main"]
+    - gemini-3.1-pro-preview: ["openrouter-main", "groq-main", "gemini-main"]
     - openai-main: ["openrouter-main", "groq-main", "gemini-main"]
+    - openai-mini: ["openrouter-main", "groq-main", "gemini-main"]
+    - claude-main: ["openrouter-main", "groq-main", "gemini-main"]
+    - deepseek-main: ["openrouter-main", "groq-main", "gemini-main"]
     - xai-main: ["openrouter-main", "groq-main", "gemini-main"]
     - mistral-main: ["openrouter-main", "groq-main", "gemini-main"]
     - nvidia-main: ["openrouter-main", "groq-main"]

@@ -154,8 +154,39 @@ export class Database {
     return !!getFirestoreDB();
   }
 
-  public hashPassword(password: string): string {
-    return crypto.createHash('sha256').update(`kiran_salt_${password}`).digest('hex');
+  /**
+   * Hash a password with a per-user random salt and scrypt (KDF), stored as
+   * `scrypt$<saltHex>$<hashHex>`. The old scheme was a single unsalted SHA-256
+   * with a hardcoded salt, which made identical passwords collide across users
+   * and allowed offline brute force at GPU speed.
+   */
+  public hashPassword(password: string, salt?: string): string {
+    const saltHex = salt || crypto.randomBytes(16).toString('hex');
+    const derived = crypto.scryptSync(password, Buffer.from(saltHex, 'hex'), 64);
+    return `scrypt$${saltHex}$${derived.toString('hex')}`;
+  }
+
+  /**
+   * Verify a password against a stored hash, supporting the legacy
+   * `sha256('kiran_salt_'+password)` format so existing accounts keep working.
+   * Comparison is constant-time to avoid leaking a match through timing.
+   */
+  public verifyPassword(password: string, storedHash?: string): { ok: boolean; legacy: boolean } {
+    if (!storedHash) return { ok: false, legacy: false };
+    const safeEqual = (a: string, b: string): boolean => {
+      const ab = Buffer.from(a);
+      const bb = Buffer.from(b);
+      return ab.length === bb.length && crypto.timingSafeEqual(ab, bb);
+    };
+    if (storedHash.startsWith('scrypt$')) {
+      const parts = storedHash.split('$');
+      if (parts.length !== 3) return { ok: false, legacy: false };
+      const recomputed = this.hashPassword(password, parts[1]);
+      return { ok: safeEqual(recomputed, storedHash), legacy: false };
+    }
+    // Legacy compatibility path.
+    const legacyHash = crypto.createHash('sha256').update(`kiran_salt_${password}`).digest('hex');
+    return { ok: safeEqual(legacyHash, storedHash), legacy: true };
   }
 
   private seedDefaults() {
@@ -168,10 +199,10 @@ export class Database {
         pricePerYearUSD: 0,
         creditsPerMonth: 100,
         dailyMessageLimit: 25,
-        allowedModels: ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'ministral-8b-latest'],
+        allowedModels: ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'ministral-8b-latest'],
         features: [
           '25 mensajes diarios',
-          'Gemini 3.8 Flash & Ministral 8B',
+          'Gemini 3.5 Flash & Ministral 8B',
           'Google Web Search Grounding en tiempo real',
           'IDE y Sandbox en navegador',
           'Descarga y exportación de proyectos en ZIP',
@@ -188,7 +219,7 @@ export class Database {
         pricePerYearUSD: 85,
         creditsPerMonth: 1000,
         dailyMessageLimit: 150,
-        allowedModels: ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'ministral-8b-latest', 'codestral-latest'],
+        allowedModels: ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'ministral-8b-latest', 'codestral-latest'],
         features: [
           '150 mensajes diarios (~1,000 créditos/mes)',
           'Codestral y Mistral Large',
@@ -208,7 +239,7 @@ export class Database {
         creditsPerMonth: 3000,
         dailyMessageLimit: 500,
         allowedModels: [
-          'gemini-3.8-flash',
+          'gemini-3.5-flash',
           'gemini-3.1-pro-preview',
           'openai-main',
           'claude-main',
@@ -236,7 +267,7 @@ export class Database {
         creditsPerMonth: 15000,
         dailyMessageLimit: 10000,
         allowedModels: [
-          'gemini-3.8-flash',
+          'gemini-3.5-flash',
           'gemini-3.1-pro-preview',
           'openai-main',
           'claude-main',
@@ -271,27 +302,43 @@ export class Database {
     }
     this.saveFile('plans.json', this.plans);
 
-    // 2. Seed Default Accounts
-    const adminEmail = 'muhammaddris.dd@gmail.com';
-    let admin = Array.from(this.users.values()).find((u) => u.email.toLowerCase() === adminEmail.toLowerCase());
-    if (!admin) {
-      admin = {
-        id: 'usr_admin_master',
-        email: adminEmail,
-        name: 'Muhammad Dris',
-        passwordHash: this.hashPassword('admin123'),
-        role: 'admin',
-        plan: 'business',
-        subscriptionStatus: 'active',
-        avatarUrl: '/kiran-emblem.svg',
-        createdAt: Date.now() - 86400000 * 30,
-        updatedAt: Date.now(),
-        lastLoginAt: Date.now(),
-        preferences: { theme: 'dark', activeModel: 'gemini-3.8-flash' },
-      };
-      this.users.set(admin.id, admin);
-      this.ensureUserCredits(admin.id, 15000);
-      syncDocToFirestore('users', admin.id, admin).catch(() => {});
+    // 2. Bootstrap the configured administrator(s), if any.
+    //    Admin is granted only to emails in ADMIN_EMAILS. No personal address is
+    //    hardcoded and no default password is ever created: the owner registers
+    //    the account normally (setting a real hash) and it is promoted here.
+    const adminEmails = (process.env.ADMIN_EMAILS || '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+    for (const email of adminEmails) {
+      const existing = Array.from(this.users.values()).find(
+        (u) => u.email.toLowerCase() === email
+      );
+      if (existing) {
+        if (existing.role !== 'admin') {
+          existing.role = 'admin';
+          existing.updatedAt = Date.now();
+          this.users.set(existing.id, existing);
+          syncDocToFirestore('users', existing.id, existing).catch(() => {});
+        }
+      } else {
+        const admin: UserEntity = {
+          id: `usr_admin_${crypto.createHash('sha256').update(email).digest('hex').slice(0, 12)}`,
+          email,
+          name: 'Administrador KiranAI',
+          role: 'admin',
+          plan: 'business',
+          subscriptionStatus: 'active',
+          avatarUrl: '/kiran-emblem.svg',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lastLoginAt: 0,
+          preferences: { theme: 'dark', activeModel: 'gemini-3.5-flash' },
+        };
+        this.users.set(admin.id, admin);
+        this.ensureUserCredits(admin.id, 15000);
+        syncDocToFirestore('users', admin.id, admin).catch(() => {});
+      }
     }
 
     if (!this.users.has('usr_guest')) {
@@ -305,7 +352,7 @@ export class Database {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         lastLoginAt: Date.now(),
-        preferences: { theme: 'dark', activeModel: 'gemini-3.8-flash' },
+        preferences: { theme: 'dark', activeModel: 'gemini-3.5-flash' },
       };
       this.users.set(guest.id, guest);
       this.ensureUserCredits(guest.id, 100);
@@ -343,11 +390,18 @@ export class Database {
     }
 
     const id = `usr_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    let passwordHash: string | undefined;
+    let passwordSalt: string | undefined;
+    if (userData.password) {
+      passwordSalt = crypto.randomBytes(16).toString('hex');
+      passwordHash = this.hashPassword(userData.password, passwordSalt);
+    }
     const user: UserEntity = {
       id,
       email: cleanEmail,
       name: userData.name || cleanEmail.split('@')[0],
-      passwordHash: userData.password ? this.hashPassword(userData.password) : undefined,
+      passwordHash,
+      passwordSalt,
       role: userData.role || 'user',
       plan: 'free',
       subscriptionStatus: 'none',

@@ -73,7 +73,7 @@ export const BillingView: React.FC<BillingViewProps> = ({
       features: [
         '25 mensajes diarios',
         '100 créditos de bienvenida',
-        'Gemini 3.8 Flash & Ministral 8B',
+        'Gemini 3.5 Flash & Ministral 8B',
         'Google Web Search Grounding en tiempo real',
         'IDE y Sandbox en navegador',
         'Descarga de proyectos en ZIP real',

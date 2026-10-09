@@ -12,6 +12,7 @@ export interface UserEntity {
   email: string;
   name: string;
   passwordHash?: string;
+  passwordSalt?: string;
   role: UserRole;
   plan: PlanTier;
   stripeCustomerId?: string;

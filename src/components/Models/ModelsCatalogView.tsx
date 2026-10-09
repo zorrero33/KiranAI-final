@@ -361,6 +361,43 @@ export const ModelsCatalogView: React.FC<ModelsCatalogViewProps> = ({
                       <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-semibold border border-[#303040]">
                         {model.provider || 'Proveedor'}
                       </span>
+                      {model.status && (
+                        <span
+                          title={model.tier}
+                          className={`inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border font-semibold ${
+                            model.status === 'active'
+                              ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60'
+                              : model.status === 'configured'
+                              ? 'bg-sky-950/70 text-sky-300 border-sky-700/60'
+                              : model.status === 'key_required'
+                              ? 'bg-amber-950/70 text-amber-300 border-amber-700/60'
+                              : 'bg-zinc-900 text-zinc-400 border-zinc-700/60'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              model.status === 'active'
+                                ? 'bg-emerald-400'
+                                : model.status === 'configured'
+                                ? 'bg-sky-400'
+                                : model.status === 'key_required'
+                                ? 'bg-amber-400'
+                                : 'bg-zinc-500'
+                            }`}
+                          />
+                          {model.status === 'active'
+                            ? 'Disponible'
+                            : model.status === 'configured'
+                            ? 'Configurado'
+                            : model.status === 'key_required'
+                            ? 'Sin clave'
+                            : model.status === 'deprecated'
+                            ? 'Obsoleto'
+                            : model.status === 'unavailable'
+                            ? 'Sin acceso'
+                            : 'No disponible'}
+                        </span>
+                      )}
                       {model.badges?.includes('recommended') && (
                         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-950/80 text-purple-300 border border-purple-700/60 flex items-center gap-1 font-semibold">
                           <Sparkles className="w-2.5 h-2.5 text-purple-400" />

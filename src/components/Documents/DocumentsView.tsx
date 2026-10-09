@@ -23,7 +23,7 @@ interface DocumentsViewProps {
 
 export const DocumentsView: React.FC<DocumentsViewProps> = ({ onNotify, onSendToChat }) => {
   const [docContent, setDocContent] = useState<string>(
-    `# Especificación del Sistema Kiran AI OS v1.2\n\nKiran AI es un sistema operativo de inteligencia artificial autónomo diseñado para desarrolladores, investigadores y creadores digitales.\n\n## Características Principales:\n1. Enrutador universal de modelos con failover automático a través de LiteLLM Proxy, Groq LPU, Google Gemini 3.8 Flash, Mistral AI y OpenRouter.\n2. Espacio de trabajo de código con ejecutor nativo y empaquetador ZIP.\n3. Soporte móvil completo con compatibilidad WebAPK y compilación de paquetes instalables Android APK.\n4. Memoria contextual persistente y centro de automatizaciones.\n5. Modos de diagnóstico y resolución de problemas técnicos.`
+    `# Especificación del Sistema Kiran AI OS v1.2\n\nKiran AI es un sistema operativo de inteligencia artificial autónomo diseñado para desarrolladores, investigadores y creadores digitales.\n\n## Características Principales:\n1. Enrutador universal de modelos con failover automático a través de LiteLLM Proxy, Groq LPU, Google Gemini 3.5 Flash, Mistral AI y OpenRouter.\n2. Espacio de trabajo de código con ejecutor nativo y empaquetador ZIP.\n3. Soporte móvil completo con compatibilidad WebAPK y compilación de paquetes instalables Android APK.\n4. Memoria contextual persistente y centro de automatizaciones.\n5. Modos de diagnóstico y resolución de problemas técnicos.`
   );
   const [docTitle, setDocTitle] = useState('Especificacion-KiranAI.md');
   const [query, setQuery] = useState('¿Cuáles son los proveedores soportados por Kiran AI?');
@@ -47,7 +47,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ onNotify, onSendTo
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-3.5-flash',
           messages: [
             {
               role: 'system',

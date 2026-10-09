@@ -22,7 +22,7 @@ export const PLAN_CONFIGS: Record<string, UserPlanConfig> = {
     pricePerMonthUSD: 0,
     features: [
       '25 mensajes diarios',
-      'Gemini 3.8 Flash & Ministral 8B',
+      'Gemini 3.5 Flash & Ministral 8B',
       'Google Web Search Grounding en tiempo real',
       'IDE y Sandbox en navegador',
       'Descarga de proyectos en ZIP real',

@@ -1,4 +1,4 @@
-import express, { type Request, type Response } from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
@@ -10,9 +10,21 @@ import { UsageManager, PLAN_CONFIGS } from './src/server/usageManager.ts';
 import { UserStore } from './src/server/userStore.ts';
 import { StripeManager } from './src/server/stripeManager.ts';
 import { Database } from './src/server/db/database.ts';
+import { isAdminPersistenceEnabled } from './src/server/db/firestore.ts';
 import { AIRouter } from './src/server/aiRouter.ts';
+import {
+  buildCorsMiddleware,
+  optionalAuth,
+  rateLimit,
+  requireAdmin,
+  requireAuth,
+  resolveUserId,
+} from './src/server/auth.ts';
 
-dotenv.config({ override: true });
+// Load .env for local development. Do NOT override: on Cloud Run / Firebase
+// Hosting the platform injects PORT and the secrets, and the .env file must
+// never win over them (a stale PORT in .env would make the service unreachable).
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,15 +32,69 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-// Iframe & Cross-Origin Security Configuration for Safari / iOS Preview Embeds
-app.use((_req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  res.removeHeader('X-Frame-Options');
+// Behind a reverse proxy / load balancer (Cloud Run, Railway, Nginx) the real
+// client IP arrives in X-Forwarded-For. Without this, per-IP rate limiting
+// would bucket every client under the proxy's address. Only trust the header
+// when explicitly enabled, so a client cannot spoof its identity by default.
+if (process.env.TRUST_PROXY === 'true' || process.env.TRUST_PROXY === '1') {
+  app.set('trust proxy', true);
+}
+
+// Baseline hardening headers. Inline scripts/styles live in index.html and the
+// bundled app, so no strict CSP is asserted here (that requires a nonce or hash
+// pipeline); these headers are safe and add real protection.
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-DNS-Prefetch-Control', 'off');
+  res.setHeader(
+    'Permissions-Policy',
+    'camera=(self), microphone=(self), geolocation=(), payment=(self)'
+  );
   next();
 });
+
+// Iframe & Cross-Origin Security Configuration (restricted to allow-listed origins)
+app.use(buildCorsMiddleware());
+
+/**
+ * Verifies a Google ID token against Google's tokeninfo endpoint and confirms
+ * the audience matches the configured OAuth client id (when provided).
+ * Identity is NEVER trusted from an unverified request body.
+ */
+async function verifyGoogleIdToken(
+  idToken: string
+): Promise<{ email: string; name?: string; picture?: string; sub?: string } | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as any;
+    const expectedAud = process.env.GOOGLE_OAUTH_CLIENT_ID;
+    if (expectedAud && data.aud !== expectedAud) {
+      console.warn('[Auth] Google token audience mismatch.');
+      return null;
+    }
+    if (!data.email || data.email_verified === 'false') {
+      return null;
+    }
+    return {
+      email: data.email,
+      name: data.name,
+      picture: data.picture,
+      sub: data.sub,
+    };
+  } catch (err: any) {
+    console.warn('[Auth] Google token verification failed:', err?.message);
+    return null;
+  }
+}
 
 // Initialize Singletons
 const db = Database.getInstance();
@@ -54,16 +120,16 @@ app.post(
   }
 );
 
-// Middleware for parsing JSON with a generous limit for multimodal payloads
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Middleware for parsing JSON with a limit sized for multimodal payloads
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // Helper: Normalize model IDs from legacy or new formats
 function normalizeModel(modelId?: string): string {
   if (!modelId) return 'gemini-main';
-  if (modelId === 'gemini-3.8-flash') return 'gemini-main';
-  if (modelId === 'gemini-3.1-flash-lite') return 'gemini-3.1-flash-lite';
-  if (modelId === 'gemini-3.1-pro-preview') return 'gemini-pro';
+  // Legacy aliases kept for backward compatibility with stored conversations.
+  if (modelId === 'gemini-3.8-flash-1' || modelId === 'gemini-3.5-flash-1') return 'gemini-main';
+  if (modelId === 'gemini-pro') return 'gemini-3.1-pro-preview';
   return modelId;
 }
 
@@ -111,10 +177,15 @@ app.get('/api/status', async (_req: Request, res: Response) => {
   res.json({
     name: 'KiranIA OS',
     version: '1.2.0-LITELLM',
-    status: litellmStatus.online ? 'ONLINE' : 'DEGRADED',
+    // 'operational' means the API is serving traffic. The AI gateway health is
+    // reported separately via litellm.online so an unavailable upstream
+    // provider never makes the whole platform look down.
+    status: 'operational',
+    gatewayOnline: litellmStatus.online,
     gateway: 'LiteLLM Universal Proxy',
     litellm: {
       online: litellmStatus.online,
+      proxyReachable: litellmStatus.proxyReachable,
       proxyUrl: litellmStatus.url,
       managedLocally: litellmStatus.managedLocally,
       masterKeyConfigured: litellmStatus.masterKeyConfigured,
@@ -128,11 +199,19 @@ app.get('/api/status', async (_req: Request, res: Response) => {
       litellmStatus.configuredProviders.openrouter ||
       litellmStatus.configuredProviders.groq,
     runtime: 'Node.js + Express + LiteLLM Proxy',
+    persistence: {
+      // 'admin' = privileged server writes via firebase-admin (rules bypassed
+      // legitimately). 'local' = writes only survive in the local data dir.
+      mode: isAdminPersistenceEnabled() ? 'admin' : 'local',
+      detail: isAdminPersistenceEnabled()
+        ? 'Firestore writes via firebase-admin service account.'
+        : 'Firestore writes disabled: set FIREBASE_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS on the server.',
+    },
     activeModelDefault: 'gemini-main',
     supportedModels: [
       {
         id: 'gemini-main',
-        name: 'Gemini 3.8 Flash (via LiteLLM)',
+        name: 'Gemini 3.5 Flash (via LiteLLM)',
         shortName: 'Gemini Flash',
         provider: 'Google',
         tier: litellmStatus.configuredProviders.gemini ? 'Active (Configured)' : 'Missing GEMINI_API_KEY',
@@ -256,9 +335,9 @@ app.get('/api/providers/audit', async (_req: Request, res: Response) => {
   });
 });
 
-// 1.6 Real User Credits & Ledger API
-app.get('/api/credits', (req: Request, res: Response) => {
-  const userId = (req.query.userId as string) || 'usr_guest';
+// 1.6 Real User Credits & Ledger API (self-scoped)
+app.get('/api/credits', optionalAuth, (req: Request, res: Response) => {
+  const { userId } = resolveUserId(req, req.query.userId);
   const credits = db.getUserCredits(userId);
   const transactions = db.listUserTransactions(userId, 30);
   res.json({
@@ -267,17 +346,22 @@ app.get('/api/credits', (req: Request, res: Response) => {
   });
 });
 
-app.post('/api/credits/grant', (req: Request, res: Response) => {
-  const { userId = 'usr_guest', amount, notes } = req.body;
+// Credits can only be granted by an authenticated admin (server-side operation).
+// Clients must never mutate their own balance.
+app.post('/api/credits/grant', requireAuth, requireAdmin, (req: Request, res: Response) => {
+  const { userId, amount, notes } = req.body;
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'userId requerido.' });
+  }
   if (!amount || typeof amount !== 'number' || amount <= 0) {
     return res.status(400).json({ error: 'Monto de créditos inválido.' });
   }
-  const newBalance = db.grantCredits(userId, amount, notes || 'Recarga de créditos');
+  const newBalance = db.grantCredits(userId, amount, notes || 'Ajuste manual administrador');
   res.json({ success: true, newBalance });
 });
 
 // 2. Main Chat & Agent Execution API with Server-Sent Events (SSE) routed through LiteLLM
-app.post('/api/chat', async (req: Request, res: Response) => {
+app.post('/api/chat', optionalAuth, rateLimit({ windowMs: 60_000, max: 30, keyPrefix: 'chat' }), async (req: Request, res: Response) => {
   const {
     messages = [],
     model = 'gemini-main',
@@ -285,8 +369,17 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     enableWebSearch = false,
     files = [],
     projectContext,
-    userId = 'usr_guest',
   } = req.body;
+
+  // Identity is derived from the verified session, never trusted from the body.
+  const { userId } = resolveUserId(req, req.body.userId);
+
+  if (!Array.isArray(messages)) {
+    return res.status(400).json({ error: 'El campo "messages" debe ser una lista.' });
+  }
+  if (Array.isArray(files) && files.length > 8) {
+    return res.status(413).json({ error: 'Se permite un máximo de 8 archivos adjuntos por mensaje.' });
+  }
 
   // Set headers for SSE streaming
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -515,7 +608,7 @@ When asked to create, code, or modify projects:
 });
 
 // 3. Project Generator API (Routed through LiteLLM)
-app.post('/api/generate-project', async (req: Request, res: Response) => {
+app.post('/api/generate-project', rateLimit({ windowMs: 60_000, max: 10, keyPrefix: 'generate' }), async (req: Request, res: Response) => {
   const {
     prompt,
     projectType = 'web-app',
@@ -596,7 +689,7 @@ After the files, provide RUN INSTRUCTIONS.`;
 });
 
 // 4. File Analyzer API (Multimodal routed through LiteLLM)
-app.post('/api/analyze-file', async (req: Request, res: Response) => {
+app.post('/api/analyze-file', rateLimit({ windowMs: 60_000, max: 20, keyPrefix: 'analyze' }), async (req: Request, res: Response) => {
   const { file, task = 'audit', userQuestion, model = 'gemini-main' } = req.body;
   if (!file) {
     return res.status(400).json({ error: 'No file provided' });
@@ -666,8 +759,12 @@ app.get('/api/models', async (_req: Request, res: Response) => {
   }
 });
 
-app.post('/api/models/discover', async (_req: Request, res: Response) => {
+app.post('/api/models/discover', rateLimit({ windowMs: 60_000, max: 10, keyPrefix: 'discover' }), async (_req: Request, res: Response) => {
   try {
+    // This endpoint promises a refresh, so it must not serve the cached list —
+    // otherwise a provider failure recorded seconds ago would still report as
+    // available until the 2-minute TTL lapses.
+    ModelDiscoveryEngine.clearCache();
     const discovery = await ModelDiscoveryEngine.discoverModels(litellm.getBaseUrl(), litellm.getMasterKey());
     res.json({ ...discovery, refreshed: true });
   } catch (error: any) {
@@ -676,13 +773,13 @@ app.post('/api/models/discover', async (_req: Request, res: Response) => {
 });
 
 // 6. Model Arena / Concurrent Comparison API
-app.post('/api/chat/compare', async (req: Request, res: Response) => {
-  const { models = ['gemini-3.8-flash', 'ministral-8b-latest'], prompt, systemInstruction } = req.body;
+app.post('/api/chat/compare', rateLimit({ windowMs: 60_000, max: 15, keyPrefix: 'compare' }), async (req: Request, res: Response) => {
+  const { models = ['gemini-3.5-flash', 'ministral-8b-latest'], prompt, systemInstruction } = req.body;
   if (!prompt || !prompt.trim()) {
     return res.status(400).json({ error: 'Prompt is required' });
   }
 
-  const selectedModels = Array.isArray(models) && models.length > 0 ? models.slice(0, 3) : ['gemini-3.8-flash', 'ministral-8b-latest'];
+  const selectedModels = Array.isArray(models) && models.length > 0 ? models.slice(0, 3) : ['gemini-3.5-flash', 'ministral-8b-latest'];
   const startTime = Date.now();
 
   const results = await Promise.allSettled(
@@ -743,8 +840,9 @@ app.post('/api/chat/compare', async (req: Request, res: Response) => {
 });
 
 // 6.5 Real Vision & Image Generation Studio API
-app.post('/api/vision/generate', async (req: Request, res: Response) => {
-  const { prompt = '', aspectRatio = '1:1', userId = 'usr_guest' } = req.body;
+app.post('/api/vision/generate', optionalAuth, rateLimit({ windowMs: 60_000, max: 10, keyPrefix: 'vision' }), async (req: Request, res: Response) => {
+  const { prompt = '', aspectRatio = '1:1' } = req.body;
+  const { userId } = resolveUserId(req, req.body.userId);
   if (!prompt || !prompt.trim()) {
     return res.status(400).json({ error: 'Debes proporcionar una descripción o prompt para generar la imagen.' });
   }
@@ -754,7 +852,7 @@ app.post('/api/vision/generate', async (req: Request, res: Response) => {
     userId,
     estimatedCost: 4,
     operation: 'image_generation',
-    model: 'gemini-3.1-flash-lite-image',
+    model: 'gemini-3-pro-image',
     provider: 'google',
   });
 
@@ -768,7 +866,7 @@ app.post('/api/vision/generate', async (req: Request, res: Response) => {
     
     // Call Gemini 3 series image generation model
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite-image',
+      model: 'gemini-3-pro-image',
       contents: {
         parts: [{ text: prompt }],
       },
@@ -816,9 +914,9 @@ app.post('/api/vision/generate', async (req: Request, res: Response) => {
   }
 });
 
-// 7. Usage & Smart Paywall API
-app.get('/api/usage', (req: Request, res: Response) => {
-  const userId = (req.query.userId as string) || 'usr_guest';
+// 7. Usage & Smart Paywall API (self-scoped)
+app.get('/api/usage', optionalAuth, (req: Request, res: Response) => {
+  const { userId } = resolveUserId(req, req.query.userId);
   const plan = usageManager.getUserPlan(userId);
   const stats = usageManager.getUserDailyStats(userId);
   const remaining = Math.max(0, plan.dailyMessageLimit - stats.messagesToday);
@@ -833,14 +931,16 @@ app.get('/api/usage', (req: Request, res: Response) => {
   });
 });
 
-app.post('/api/usage/record', (req: Request, res: Response) => {
-  const { userId = 'usr_guest', model = 'gemini-3.8-flash', inputTokens, outputTokens } = req.body;
-  const result = usageManager.recordUsage({ userId, model, inputTokens, outputTokens });
+// Usage accounting is derived server-side; this endpoint is retained for
+// authenticated clients to sync telemetry for their own account only.
+app.post('/api/usage/record', requireAuth, (req: Request, res: Response) => {
+  const { model = 'gemini-3.5-flash', inputTokens, outputTokens } = req.body;
+  const result = usageManager.recordUsage({ userId: req.auth!.user.id, model, inputTokens, outputTokens });
   res.json(result);
 });
 
 // 7.5 Authentication & User Management API
-app.post('/api/auth/register', (req: Request, res: Response) => {
+app.post('/api/auth/register', rateLimit({ windowMs: 15 * 60_000, max: 20, keyPrefix: 'register' }), (req: Request, res: Response) => {
   const { email, password, name } = req.body;
   if (!email) return res.status(400).json({ error: 'El correo electrónico es requerido.' });
   try {
@@ -851,7 +951,7 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/auth/login', (req: Request, res: Response) => {
+app.post('/api/auth/login', rateLimit({ windowMs: 15 * 60_000, max: 30, keyPrefix: 'login' }), (req: Request, res: Response) => {
   const { email, password } = req.body;
   if (!email) return res.status(400).json({ error: 'El correo electrónico es requerido.' });
   try {
@@ -862,33 +962,44 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/auth/google', (req: Request, res: Response) => {
-  const { email, name, picture, sub } = req.body;
-  if (!email) return res.status(400).json({ error: 'Payload de Google inválido (email requerido).' });
+app.post('/api/auth/google', rateLimit({ windowMs: 15 * 60_000, max: 30, keyPrefix: 'google' }), async (req: Request, res: Response) => {
+  const { idToken } = req.body;
+  if (!idToken || typeof idToken !== 'string') {
+    return res.status(400).json({
+      error:
+        'Se requiere un "idToken" de Google válido. El cliente debe completar el flujo OAuth de Google y enviar el token verificable.',
+    });
+  }
+
+  const profile = await verifyGoogleIdToken(idToken);
+  if (!profile) {
+    return res.status(401).json({ error: 'No se pudo verificar el token de Google (inválido, expirado o audiencia incorrecta).' });
+  }
+
   try {
-    const result = userStore.authenticateGoogle({ email, name, picture, sub });
+    const result = userStore.authenticateGoogle(profile);
     res.json(result);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }
 });
 
-app.get('/api/auth/me', (req: Request, res: Response) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  const userId = (token ? userStore.verifySessionToken(token) : null) || (req.query.userId as string) || 'usr_guest';
-  const user = userStore.getUserById(userId) || userStore.getUserById('usr_guest');
+app.get('/api/auth/me', optionalAuth, (req: Request, res: Response) => {
+  const { userId, authenticated } = resolveUserId(req, req.query.userId);
+  if (!authenticated && !req.query.userId) {
+    return res.status(401).json({ error: 'Sesión no válida o expirada. Inicia sesión de nuevo.' });
+  }
+  const user = userStore.getUserById(userId);
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-  const { passwordHash, ...safe } = user;
+  const { passwordHash, passwordSalt, ...safe } = user;
   res.json({ user: safe });
 });
 
-app.post('/api/auth/profile', (req: Request, res: Response) => {
-  const { userId, name, avatarUrl, preferences } = req.body;
-  if (!userId) return res.status(400).json({ error: 'userId requerido' });
+app.post('/api/auth/profile', requireAuth, (req: Request, res: Response) => {
+  const { name, avatarUrl, preferences } = req.body;
   try {
-    const updated = userStore.updateUser(userId, { name, avatarUrl, preferences });
-    const { passwordHash, ...safe } = updated;
+    const updated = userStore.updateUser(req.auth!.user.id, { name, avatarUrl, preferences });
+    const { passwordHash, passwordSalt, ...safe } = updated;
     res.json({ user: safe });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -904,21 +1015,23 @@ app.get('/api/billing/plans', (_req: Request, res: Response) => {
   });
 });
 
-app.post('/api/billing/checkout', async (req: Request, res: Response) => {
-  const { planId = 'pro', userId = 'usr_guest', userEmail } = req.body;
+app.post('/api/billing/checkout', optionalAuth, async (req: Request, res: Response) => {
+  const { planId = 'pro', userEmail } = req.body;
   const plan = PLAN_CONFIGS[planId];
   if (!plan) {
     return res.status(400).json({ error: 'Plan inválido' });
   }
 
+  // The paying account is always the authenticated user when present.
+  const { userId } = resolveUserId(req, req.body.userId);
   const origin = `${req.protocol}://${req.get('host')}`;
-  const email = userEmail || userStore.getUserById(userId)?.email || 'guest@kiranai.com';
+  const email = req.auth?.user.email || userEmail || userStore.getUserById(userId)?.email || 'guest@kiranai.com';
 
   try {
     const session = await stripeManager.createCheckoutSession({
       userId,
       userEmail: email,
-      planId: planId as 'pro' | 'business',
+      planId: planId as 'starter' | 'pro' | 'business',
       originUrl: origin,
     });
 
@@ -932,40 +1045,38 @@ app.post('/api/billing/checkout', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     if (!stripeManager.isConfigured()) {
-      return res.json({
-        success: true,
-        plan,
-        sessionId: `sim_cs_${Date.now()}`,
-        checkoutUrl: `${origin}/?billing=success&plan=${planId}&simulated=true`,
+      // Stripe is not configured: do NOT simulate a subscription. Report clearly.
+      return res.status(503).json({
+        error:
+          'La facturación no está activa: falta configurar STRIPE_SECRET_KEY y los Price IDs en el servidor.',
         stripeConfigured: false,
-        message: `Modo Sandbox: Suscripción a ${plan.name} simulada con éxito.`,
+        plan,
       });
     }
     res.status(500).json({ error: err.message || 'Error al iniciar suscripción Stripe' });
   }
 });
 
-app.post('/api/billing/portal', async (req: Request, res: Response) => {
-  const { userId = 'usr_guest' } = req.body;
+app.post('/api/billing/portal', requireAuth, async (req: Request, res: Response) => {
   const origin = `${req.protocol}://${req.get('host')}`;
   try {
-    const portal = await stripeManager.createCustomerPortalSession({ userId, originUrl: origin });
+    const portal = await stripeManager.createCustomerPortalSession({ userId: req.auth!.user.id, originUrl: origin });
     res.json({ url: portal.url });
   } catch (err: any) {
     res.status(400).json({ error: err.message || 'Error al acceder a Stripe Customer Portal' });
   }
 });
 
-// 8.5 Admin Users Management
-app.get('/api/admin/users', (_req: Request, res: Response) => {
+// 8.5 Admin Users Management (admin-only)
+app.get('/api/admin/users', requireAuth, requireAdmin, (_req: Request, res: Response) => {
   const users = userStore.listAllUsers();
   res.json({ users, total: users.length });
 });
 
-app.post('/api/admin/users/:id/plan', (req: Request, res: Response) => {
+app.post('/api/admin/users/:id/plan', requireAuth, requireAdmin, (req: Request, res: Response) => {
   const { id } = req.params;
   const { plan } = req.body;
-  if (!['free', 'pro', 'business'].includes(plan)) {
+  if (!['free', 'starter', 'pro', 'business'].includes(plan)) {
     return res.status(400).json({ error: 'Plan inválido' });
   }
   try {
@@ -1033,8 +1144,8 @@ app.get('/api/android/project.zip', async (_req: Request, res: Response) => {
   }
 });
 
-// 9. Admin Platform Telemetry API
-app.get('/api/admin/metrics', (_req: Request, res: Response) => {
+// 9. Admin Platform Telemetry API (admin-only)
+app.get('/api/admin/metrics', requireAuth, requireAdmin, (_req: Request, res: Response) => {
   const metrics = usageManager.getPlatformMetrics();
   res.json({
     metrics,

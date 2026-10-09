@@ -1,3 +1,5 @@
+import { providerHealthMap, resolveLitellmMasterKey } from './litellmManager.ts';
+
 export interface AIModelMetadata {
   id: string;
   name: string;
@@ -23,7 +25,7 @@ export interface AIModelMetadata {
   };
   speedRating: 'ultra-fast' | 'fast' | 'balanced' | 'deep-thinking';
   tokensPerSecEstimate: number;
-  status: 'active' | 'configured' | 'key_required';
+  status: 'active' | 'configured' | 'key_required' | 'unavailable';
   badges: ('recommended' | 'fastest' | 'cheapest' | 'reasoning' | 'multimodal' | 'new')[];
   isDefault?: boolean;
 }
@@ -31,9 +33,9 @@ export interface AIModelMetadata {
 export const VERIFIED_MODEL_REGISTRY: AIModelMetadata[] = [
   // 1. Google Gemini Models
   {
-    id: 'gemini-3.8-flash',
-    name: 'Google Gemini 3.8 Flash',
-    shortName: 'Gemini 3.8 Flash',
+    id: 'gemini-3.5-flash',
+    name: 'Google Gemini 3.5 Flash',
+    shortName: 'Gemini 3.5 Flash',
     provider: 'Google',
     family: 'Gemini 3',
     description: 'Motor de última generación optimizado para velocidad, razonamiento multimodal, código y grounding web en tiempo real.',
@@ -88,8 +90,8 @@ export const VERIFIED_MODEL_REGISTRY: AIModelMetadata[] = [
     badges: ['reasoning'],
   },
   {
-    id: 'gemini-3.1-flash-lite',
-    name: 'Google Gemini 3.1 Flash Lite',
+    id: 'gemini-3.5-flash-lite',
+    name: 'Google Gemini 3.5 Flash Lite',
     shortName: 'Gemini Lite',
     provider: 'Google',
     family: 'Gemini 3',
@@ -424,7 +426,7 @@ export class ModelDiscoveryEngine {
 
     // 1. Check LiteLLM Proxy
     const proxyBase = (litellmUrl || process.env.LITELLM_URL || 'http://127.0.0.1:4000/v1').replace(/\/+$/, '');
-    const secretKey = masterKey || process.env.LITELLM_MASTER_KEY || 'sk-litellm-master-secret-key';
+    const secretKey = masterKey || resolveLitellmMasterKey();
 
     try {
       const controller = new AbortController();
@@ -667,7 +669,10 @@ export class ModelDiscoveryEngine {
       }
     }
 
-    // Refresh model status flags based on verified active provider keys
+    // Refresh model status flags based on verified active provider keys, then
+    // downgrade any provider the gateway has actually seen fail at runtime
+    // (quota exhausted / auth rejected). A key being present is not proof that
+    // the account can serve requests.
     const finalModels = discoveredList.map((model) => {
       const providerKey = model.provider.toLowerCase();
       const hasKey =
@@ -677,10 +682,14 @@ export class ModelDiscoveryEngine {
         (model.provider === 'Groq' && !!process.env.GROQ_API_KEY) ||
         (model.provider === 'Mistral' && !!process.env.MISTRAL_API_KEY);
 
-      return {
-        ...model,
-        status: hasKey ? ('active' as const) : ('key_required' as const),
-      };
+      let status: AIModelMetadata['status'] = hasKey ? 'active' : 'key_required';
+
+      const health = providerHealthMap.get(providerKey);
+      if (hasKey && (health?.quotaExhausted || health?.authFailed)) {
+        status = 'unavailable';
+      }
+
+      return { ...model, status };
     });
 
     this.cache = {

@@ -74,7 +74,7 @@ npm run dev
 **Terminal 1 — Proxy LiteLLM:**
 ```bash
 # Exportar la clave maestra y arrancar el proxy en puerto 4000
-LITELLM_MASTER_KEY="sk-litellm-master-secret-key" /opt/litellm-venv/bin/litellm --config ./litellm_config.yaml --port 4000 --host 0.0.0.0
+LITELLM_MASTER_KEY="<tu-clave-maestra-segura>" /opt/litellm-venv/bin/litellm --config ./litellm_config.yaml --port 4000 --host 0.0.0.0
 ```
 
 **Terminal 2 — Servidor Web & Backend:**
@@ -129,7 +129,7 @@ Configura estas variables en tu archivo `.env` en la raíz del proyecto (nunca l
    ```bash
    curl -X POST http://127.0.0.1:4000/v1/chat/completions \
      -H "Content-Type: application/json" \
-     -H "Authorization: Bearer sk-litellm-master-secret-key" \
+     -H "Authorization: Bearer <tu-clave-maestra-segura>" \
      -d '{"model": "gemini-main", "messages": [{"role": "user", "content": "Hola"}]}'
    ```
 
@@ -144,7 +144,7 @@ Configura estas variables en tu archivo `.env` en la raíz del proyecto (nunca l
    ```bash
    curl -X POST http://127.0.0.1:4000/v1/chat/completions \
      -H "Content-Type: application/json" \
-     -H "Authorization: Bearer sk-litellm-master-secret-key" \
+     -H "Authorization: Bearer <tu-clave-maestra-segura>" \
      -d '{"model": "openai-main", "messages": [{"role": "user", "content": "Hola desde OpenAI"}]}'
    ```
 
@@ -159,7 +159,7 @@ Configura estas variables en tu archivo `.env` en la raíz del proyecto (nunca l
    ```bash
    curl -X POST http://127.0.0.1:4000/v1/chat/completions \
      -H "Content-Type: application/json" \
-     -H "Authorization: Bearer sk-litellm-master-secret-key" \
+     -H "Authorization: Bearer <tu-clave-maestra-segura>" \
      -d '{"model": "claude-main", "messages": [{"role": "user", "content": "Hola Claude"}]}'
    ```
 
@@ -277,7 +277,7 @@ Para comprobar que una petición está pasando realmente por LiteLLM:
 
 | Problema | Causa probable | Solución |
 |---|---|---|
-| **401 Unauthorized en el backend** | `LITELLM_MASTER_KEY` no coincide entre `.env` y la cabecera `Authorization`. | Verifica que `LITELLM_MASTER_KEY` en `.env` sea igual al configurado en `litellm_config.yaml` (por defecto `sk-litellm-master-secret-key`). |
+| **401 Unauthorized en el backend** | `LITELLM_MASTER_KEY` no coincide entre `.env` y la cabecera `Authorization`. | Verifica que `LITELLM_MASTER_KEY` en `.env` sea igual al configurado en `litellm_config.yaml` (por defecto `<tu-clave-maestra-segura>`). |
 | **401 / AuthenticationError del Proveedor** | Falta la API key del proveedor (OpenAI, Anthropic, etc.) en las variables de entorno. | Añade la API key correspondiente en `.env` (ej. `OPENAI_API_KEY="..."`) y reinicia LiteLLM. |
 | **404 Model Not Found** | El nombre de modelo especificado no existe o fue descontinuado. | Actualiza el mapeo en `litellm_config.yaml`. Por ejemplo, para Gemini usa `gemini/gemini-3.8-flash`. |
 | **429 Rate Limit Exceeded** | Se ha alcanzado la cuota máxima por minuto del proveedor. | El sistema de fallbacks cambiará automáticamente al modelo secundario en la lista de fallbacks. |

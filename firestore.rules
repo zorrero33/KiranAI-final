@@ -17,23 +17,29 @@ service cloud.firestore {
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
-    // Connection testing
-    match /test/connection {
-      allow read, write: if true;
-    }
-
     // Users collection
+    // Clients may read their own profile and update only non-privileged fields.
+    // Plan, role and subscription state are server-controlled (Admin SDK / backend).
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow update: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && request.auth.uid == userId
+        && !('role' in request.resource.data)
+        && !('plan' in request.resource.data);
+      allow update: if isAdmin() || (
+        isOwner(userId) && (
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.plan == resource.data.plan &&
+          request.resource.data.subscriptionStatus == resource.data.subscriptionStatus
+        )
+      );
       allow delete: if isAdmin();
     }
 
-    // Credits collection
+    // Credits collection: balance is authoritative on the backend only.
+    // Clients can read their own ledger but never write to it.
     match /credits/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow write: if isAdmin() || isOwner(userId);
+      allow write: if isAdmin();
     }
 
     // Subscriptions
@@ -49,10 +55,12 @@ service cloud.firestore {
     }
 
     // AI Request telemetry
+    // Telemetry rows are written by the backend (Admin SDK, which bypasses
+    // rules). Clients may read only their own rows; client writes are denied so
+    // a user cannot forge usage records or inflate another account's history.
     match /aiRequests/{reqId} {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin();
+      allow write: if isAdmin();
     }
   }
 }

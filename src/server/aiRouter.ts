@@ -32,21 +32,21 @@ export interface ModelSpecification {
 
 export const SUPPORTED_MODELS_REGISTRY: Record<string, ModelSpecification> = {
   // Google Gemini
-  'gemini-3.8-flash': {
-    id: 'gemini-3.8-flash',
+  'gemini-3.5-flash': {
+    id: 'gemini-3.5-flash',
     provider: 'google',
-    modelSlug: 'gemini-3.8-flash',
-    name: 'Gemini 3.8 Flash',
+    modelSlug: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
     creditCost: 1,
     inputCostPerM: 0.075,
     outputCostPerM: 0.3,
     capabilities: { vision: true, reasoning: true, code: true, tools: true, streaming: true },
   },
-  'gemini-3.1-flash-lite': {
-    id: 'gemini-3.1-flash-lite',
+  'gemini-3.5-flash-lite': {
+    id: 'gemini-3.5-flash-lite',
     provider: 'google',
-    modelSlug: 'gemini-3.1-flash-lite',
-    name: 'Gemini 3.1 Flash Lite',
+    modelSlug: 'gemini-3.5-flash-lite',
+    name: 'Gemini 3.5 Flash Lite',
     creditCost: 1,
     inputCostPerM: 0.0375,
     outputCostPerM: 0.15,
@@ -62,10 +62,10 @@ export const SUPPORTED_MODELS_REGISTRY: Record<string, ModelSpecification> = {
     outputCostPerM: 5.0,
     capabilities: { vision: true, reasoning: true, code: true, tools: true, streaming: true },
   },
-  'gemini-3.1-flash-lite-image': {
-    id: 'gemini-3.1-flash-lite-image',
+  'gemini-3-pro-image': {
+    id: 'gemini-3-pro-image',
     provider: 'google',
-    modelSlug: 'gemini-3.1-flash-lite-image',
+    modelSlug: 'gemini-3-pro-image',
     name: 'Gemini Image Studio',
     creditCost: 4,
     inputCostPerM: 0.2,
@@ -110,12 +110,12 @@ export const SUPPORTED_MODELS_REGISTRY: Record<string, ModelSpecification> = {
   'openrouter-main': {
     id: 'openrouter-main',
     provider: 'openrouter',
-    modelSlug: 'inclusionai/ling-3.0-flash-sante:free',
-    name: 'Ling 3.0 Flash (OpenRouter)',
+    modelSlug: 'meta-llama/llama-3.3-70b-instruct',
+    name: 'Llama 3.3 70B (OpenRouter)',
     creditCost: 1,
     inputCostPerM: 0.0,
     outputCostPerM: 0.0,
-    capabilities: { vision: true, reasoning: false, code: true, tools: false, streaming: true },
+    capabilities: { vision: false, reasoning: true, code: true, tools: true, streaming: true },
   },
   'openrouter/auto': {
     id: 'openrouter/auto',
@@ -230,9 +230,9 @@ export class AIRouter {
         envVar: 'GEMINI_API_KEY',
         isConfigured: !!process.env.GEMINI_API_KEY,
         status: process.env.GEMINI_API_KEY ? 'active' : 'missing_key',
-        description: 'Modelos Gemini 3.8 Flash, Flash Lite, Pro con razonamiento multimodal y búsqueda web.',
+        description: 'Modelos Gemini 3.5 Flash, Flash Lite, Pro con razonamiento multimodal y búsqueda web.',
         docsUrl: 'https://aistudio.google.com/app/apikey',
-        models: ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite-image'],
+        models: ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-pro-preview', 'gemini-3-pro-image'],
       },
       {
         id: 'mistral',
@@ -312,7 +312,7 @@ export class AIRouter {
     if (spec) return spec;
 
     // Normalize fallbacks
-    if (modelId === 'gemini-main') return SUPPORTED_MODELS_REGISTRY['gemini-3.8-flash'];
+    if (modelId === 'gemini-main') return SUPPORTED_MODELS_REGISTRY['gemini-3.5-flash'];
     if (modelId.startsWith('mistral')) return SUPPORTED_MODELS_REGISTRY['ministral-8b-latest'];
     if (modelId.startsWith('codestral')) return SUPPORTED_MODELS_REGISTRY['codestral-latest'];
     if (modelId.startsWith('openrouter')) return SUPPORTED_MODELS_REGISTRY['openrouter-main'];
@@ -521,19 +521,19 @@ export class AIRouter {
             openAiSucceeded = true;
           } else {
             const errData = await res.json().catch(() => ({ error: { message: res.statusText } }));
-            console.log(`[AIRouter] OpenAI error (${res.status}): ${errData.error?.message || res.statusText}. Conmutando transparentemente a Gemini 3.8 Flash.`);
+            console.log(`[AIRouter] OpenAI error (${res.status}): ${errData.error?.message || res.statusText}. Conmutando transparentemente a Gemini 3.5 Flash.`);
           }
         } catch (fetchErr: any) {
-          console.log(`[AIRouter] OpenAI fetch error: ${fetchErr.message}. Conmutando transparentemente a Gemini 3.8 Flash.`);
+          console.log(`[AIRouter] OpenAI fetch error: ${fetchErr.message}. Conmutando transparentemente a Gemini 3.5 Flash.`);
         }
 
         if (!openAiSucceeded) {
-          // Graceful fallback to Gemini 3.8 Flash
+          // Graceful fallback to Gemini 3.5 Flash
           const ai = this.getGemini();
           const { systemInstruction, contents } = this.convertMessagesToGemini(params.messages);
 
           const response = await ai.models.generateContent({
-            model: 'gemini-3.8-flash',
+            model: 'gemini-3.5-flash',
             contents,
             config: {
               systemInstruction,

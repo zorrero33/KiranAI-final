@@ -72,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [modelDropdownOpen, setModelDropdownOpen] = React.useState(false);
 
   const availableList = models.length > 0 ? models : [
-    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', shortName: 'Gemini Flash', tier: 'Google', isPaid: false, capabilities: ['Fast'] },
+    { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', shortName: 'Gemini Flash', tier: 'Google', isPaid: false, capabilities: ['Fast'] },
     { id: 'openai-main', name: 'GPT-4o (OpenAI)', shortName: 'GPT-4o', tier: 'OpenAI', isPaid: true, capabilities: ['Coding'] },
     { id: 'claude-main', name: 'Claude 3.5 Sonnet', shortName: 'Claude Sonnet', tier: 'Anthropic', isPaid: true, capabilities: ['Architecture'] },
     { id: 'deepseek-main', name: 'DeepSeek Chat (V3)', shortName: 'DeepSeek', tier: 'DeepSeek', isPaid: true, capabilities: ['Logic'] },
@@ -105,6 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
         <nav className="hidden lg:flex items-center gap-1 bg-[#121217] p-1 rounded-xl border border-[#272732]">
           <button
             onClick={() => onViewChange('home')}
+            aria-current={currentView === 'home' ? 'page' : undefined}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
               currentView === 'home'
                 ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40 shadow-sm'
@@ -116,6 +117,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={() => onViewChange('chat')}
+            aria-current={currentView === 'chat' ? 'page' : undefined}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
               currentView === 'chat'
                 ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40 shadow-sm'
@@ -127,6 +129,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={() => onViewChange('code')}
+            aria-current={currentView === 'code' ? 'page' : undefined}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
               currentView === 'code'
                 ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40 shadow-sm'
@@ -141,6 +144,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={() => onViewChange('apk')}
+            aria-current={currentView === 'apk' ? 'page' : undefined}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
               currentView === 'apk'
                 ? 'bg-cyan-600/25 text-cyan-300 border border-cyan-500/40 shadow-sm'
@@ -153,6 +157,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={() => onViewChange('vision')}
+            aria-current={currentView === 'vision' ? 'page' : undefined}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
               currentView === 'vision'
                 ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40 shadow-sm'
@@ -164,6 +169,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={() => onViewChange('documents')}
+            aria-current={currentView === 'documents' ? 'page' : undefined}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
               currentView === 'documents'
                 ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40 shadow-sm'
@@ -175,6 +181,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={() => onViewChange('models')}
+            aria-current={currentView === 'models' ? 'page' : undefined}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
               currentView === 'models'
                 ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40 shadow-sm'
@@ -186,6 +193,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={() => onViewChange('compare')}
+            aria-current={currentView === 'compare' ? 'page' : undefined}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
               currentView === 'compare'
                 ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40 shadow-sm'
@@ -197,6 +205,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={() => onViewChange('solve')}
+            aria-current={currentView === 'solve' ? 'page' : undefined}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
               currentView === 'solve'
                 ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40 shadow-sm'
@@ -208,6 +217,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={() => onViewChange('deploy')}
+            aria-current={currentView === 'deploy' ? 'page' : undefined}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
               currentView === 'deploy'
                 ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/50 shadow-sm'
@@ -255,6 +265,7 @@ export const Header: React.FC<HeaderProps> = ({
           variant="outline"
           size="sm"
           onClick={onToggleTheme}
+          aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
           title={isDark ? 'Modo Claro' : 'Modo Oscuro'}
           className="h-8 px-2.5 bg-[#121217] border-[#272732] hover:bg-[#181820] text-zinc-300"
         >
@@ -268,6 +279,8 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Web Search Grounding Toggle */}
         <button
           onClick={onToggleWebSearch}
+          aria-pressed={webSearchActive}
+          aria-label="Activar o desactivar la búsqueda web"
           title={webSearchActive ? 'Búsqueda Web Grounding Activa' : 'Activar Búsqueda Web'}
           className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all border ${
             webSearchActive
@@ -284,6 +297,9 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="relative">
           <button
             onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+            aria-haspopup="listbox"
+            aria-expanded={modelDropdownOpen}
+            aria-label={`Seleccionar modelo. Actual: ${currentModelObj.name}`}
             className="flex items-center gap-2 bg-[#121217] hover:bg-[#181820] border border-[#272732] hover:border-purple-600/50 px-2.5 py-1.5 rounded-lg text-xs font-mono text-zinc-200 transition-colors shadow-sm"
           >
             <Sparkles className="w-3.5 h-3.5 text-purple-400" />
@@ -356,6 +372,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
             <button
               onClick={onExportZip}
+              aria-label="Descargar paquete ZIP con todos los archivos del proyecto"
               title="Descargar paquete ZIP con todos los archivos"
               className="flex items-center gap-1 bg-purple-600 hover:bg-purple-500 text-white px-2 py-1 rounded text-xs font-medium transition-colors shadow-sm"
             >
@@ -377,6 +394,7 @@ export const Header: React.FC<HeaderProps> = ({
         {onOpenAuthModal && (
           <button
             onClick={onOpenAuthModal}
+            aria-label="Abrir cuenta de usuario y preferencias"
             title="Cuenta de usuario y preferencias"
             className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow-sm hover:scale-105 transition-transform"
           >

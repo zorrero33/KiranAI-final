@@ -146,7 +146,7 @@ export const VisionStudioView: React.FC<VisionStudioProps> = ({ onNotify, onSend
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-3.5-flash',
           messages: [
             {
               role: 'user',

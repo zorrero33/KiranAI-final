@@ -57,7 +57,7 @@ export class CapabilityCatalogEngine {
     {
       id: 'remote.ai.multimodal_router',
       name: 'Enrutador Multimodal Inteligente (LiteLLM + Gemini)',
-      description: 'Selección automática y conmutación de modelos (Gemini 2.5 Pro, Claude, GPT-4o, DeepSeek) con streaming de alta velocidad.',
+      description: 'Selección automática y conmutación de modelos (Gemini 3.1 Pro, Claude, GPT-4o, DeepSeek) con streaming de alta velocidad.',
       version: '2.4.0',
       category: 'remote_function',
       riskLevel: 'low',

@@ -62,7 +62,7 @@ const REGISTERED_TOOLS: ToolIntegration[] = [
     description: 'Direct optical parsing of images, screenshots, code files, CSV, JSON, and technical specifications.',
     requiresOAuth: false,
     permissions: { read: true, write: false, execute: true },
-    architectureNotes: 'Encodes binary inlineData buffers sent securely to Gemini 3.8 models.',
+    architectureNotes: 'Encodes binary inlineData buffers sent securely to gemini-3.5 models.',
   },
   {
     id: 'gmail',

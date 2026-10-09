@@ -62,7 +62,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onNotify }) => {
     activeUsers: 84,
     successRate: '99.8%',
     modelDistribution: {
-      'gemini-3.8-flash': 890,
+      'gemini-3.5-flash': 890,
       'openai-main': 320,
       'claude-main': 180,
       'groq-main': 90,

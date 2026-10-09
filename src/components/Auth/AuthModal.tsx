@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { UserAccount } from '../../types';
 import { StorageService } from '../../services/storage';
+import { loginWithEmail, registerWithEmail, loginWithGoogle, AuthResult } from '../../services/api';
 import {
   User,
   Lock,
@@ -21,6 +22,18 @@ interface AuthModalProps {
   onNotify: (msg: string, type: 'info' | 'success' | 'warn') => void;
 }
 
+function mapAuthResultToAccount(result: AuthResult): UserAccount {
+  return {
+    id: result.user.id,
+    name: result.user.name || result.user.email.split('@')[0],
+    email: result.user.email,
+    role: result.user.role,
+    currentPlan: result.user.plan as UserAccount['currentPlan'],
+    createdAt: Date.now(),
+    apiKeyConfigured: true,
+  };
+}
+
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
@@ -32,43 +45,81 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isBusy, setIsBusy] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
+    if (password.length < 6) {
+      onNotify('La contraseña debe tener al menos 6 caracteres.', 'warn');
+      return;
+    }
 
-    const user: UserAccount = {
-      id: `usr_${Date.now()}`,
-      name: name.trim() || email.split('@')[0],
-      email: email.trim(),
-      role: 'admin',
-      currentPlan: 'pro',
-      createdAt: Date.now(),
-      apiKeyConfigured: true,
-    };
+    setIsBusy(true);
+    try {
+      const result =
+        mode === 'login'
+          ? await loginWithEmail(email.trim(), password)
+          : await registerWithEmail(email.trim(), password, name.trim() || undefined);
 
-    StorageService.saveUserAccount(user);
-    onUserLoggedIn(user);
-    onNotify(`Bienvenido a KiranIA OS, ${user.name}.`, 'success');
-    onClose();
+      const account = mapAuthResultToAccount(result);
+      StorageService.saveUserAccount(account);
+      onUserLoggedIn(account);
+      onNotify(
+        mode === 'login'
+          ? `Sesión iniciada. Bienvenido, ${account.name}.`
+          : `Cuenta creada. Bienvenido a KiranIA, ${account.name}.`,
+        'success'
+      );
+      onClose();
+    } catch (err: any) {
+      onNotify(err.message || 'No se pudo completar la autenticación.', 'warn');
+    } finally {
+      setIsBusy(false);
+    }
   };
 
-  const handleSocialLogin = (provider: string) => {
-    const user: UserAccount = {
-      id: `usr_${provider.toLowerCase()}_${Date.now()}`,
-      name: `${provider} Architect`,
-      email: `${provider.toLowerCase()}.user@kirania.internal`,
-      role: 'user',
-      currentPlan: 'pro',
-      createdAt: Date.now(),
-      apiKeyConfigured: true,
-    };
-    StorageService.saveUserAccount(user);
-    onUserLoggedIn(user);
-    onNotify(`Autenticado vía ${provider} con éxito.`, 'success');
-    onClose();
+  const handleGoogleLogin = async () => {
+    const clientId = (import.meta as any)?.env?.VITE_GOOGLE_OAUTH_CLIENT_ID as string | undefined;
+    const googleIdentity = (window as any)?.google?.accounts?.id;
+    if (!clientId || !googleIdentity) {
+      onNotify(
+        'El acceso con Google requiere configurar VITE_GOOGLE_OAUTH_CLIENT_ID (cliente OAuth) en el frontend.',
+        'warn'
+      );
+      return;
+    }
+
+    setIsBusy(true);
+    try {
+      const idToken: string = await new Promise((resolve, reject) => {
+        googleIdentity.initialize({
+          client_id: clientId,
+          callback: (response: any) => {
+            if (response?.credential) resolve(response.credential);
+            else reject(new Error('Google no devolvió una credencial válida.'));
+          },
+        });
+        googleIdentity.prompt((notification: any) => {
+          if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
+            reject(new Error('El acceso con Google fue cancelado o bloqueado por el navegador.'));
+          }
+        });
+      });
+
+      const result = await loginWithGoogle(idToken);
+      const account = mapAuthResultToAccount(result);
+      StorageService.saveUserAccount(account);
+      onUserLoggedIn(account);
+      onNotify(`Autenticado vía Google como ${account.email}.`, 'success');
+      onClose();
+    } catch (err: any) {
+      onNotify(err.message || 'No se pudo autenticar con Google.', 'warn');
+    } finally {
+      setIsBusy(false);
+    }
   };
 
   return (
@@ -103,19 +154,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         <div className="space-y-2">
           <button
             type="button"
-            onClick={() => handleSocialLogin('Google')}
-            className="w-full py-2.5 px-4 rounded-xl bg-[#14141c] hover:bg-[#1a1a24] border border-[#272732] hover:border-zinc-500 text-xs font-mono text-zinc-200 transition-colors flex items-center justify-center gap-2"
+            disabled={isBusy}
+            onClick={handleGoogleLogin}
+            className="w-full py-2.5 px-4 rounded-xl bg-[#14141c] hover:bg-[#1a1a24] border border-[#272732] hover:border-zinc-500 text-xs font-mono text-zinc-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <span className="font-bold text-purple-400">G</span>
-            <span>Continuar con Google Workspace</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSocialLogin('GitHub')}
-            className="w-full py-2.5 px-4 rounded-xl bg-[#14141c] hover:bg-[#1a1a24] border border-[#272732] hover:border-zinc-500 text-xs font-mono text-zinc-200 transition-colors flex items-center justify-center gap-2"
-          >
-            <Github className="w-4 h-4 text-white" />
-            <span>Continuar con GitHub OAuth</span>
+            <span>Continuar con Google</span>
           </button>
         </div>
 
@@ -175,9 +219,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           <button
             type="submit"
-            className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-mono font-semibold transition-colors shadow-md mt-2"
+            disabled={isBusy}
+            className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-mono font-semibold transition-colors shadow-md mt-2 disabled:opacity-50"
           >
-            {mode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
+            {isBusy ? 'Procesando...' : mode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
           </button>
         </form>
 

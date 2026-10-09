@@ -31,12 +31,14 @@ import {
   Cpu,
   Zap,
   Activity,
+  Square,
 } from 'lucide-react';
 
 interface ChatViewProps {
   messages: ChatMessage[];
   onSendMessage: (content: string, files: AttachedFile[], personaId: string) => void;
   isLoading: boolean;
+  onCancelGeneration?: () => void;
   webSearchActive: boolean;
   onToggleWebSearch: () => void;
   activeProject: Project | null;
@@ -93,6 +95,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   messages,
   onSendMessage,
   isLoading,
+  onCancelGeneration,
   webSearchActive,
   onToggleWebSearch,
   onOpenProjectFile,
@@ -807,11 +810,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
               </button>
               <button
-                type="submit"
-                disabled={isLoading || (!input.trim() && attachedFiles.length === 0)}
-                className="p-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-all shadow-[0_0_15px_rgba(168,85,247,0.35)] cursor-pointer"
+                type={isLoading ? 'button' : 'submit'}
+                onClick={isLoading ? onCancelGeneration : undefined}
+                disabled={!isLoading && !input.trim() && attachedFiles.length === 0}
+                title={isLoading ? 'Cancelar generación' : 'Enviar mensaje'}
+                className={`p-2.5 rounded-xl text-white transition-all shadow-[0_0_15px_rgba(168,85,247,0.35)] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  isLoading
+                    ? 'bg-gradient-to-r from-rose-600 to-orange-500 hover:from-rose-500 hover:to-orange-400'
+                    : 'bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500'
+                }`}
               >
-                <Send className="w-4 h-4" />
+                {isLoading ? <Square className="w-4 h-4" /> : <Send className="w-4 h-4" />}
               </button>
             </div>
           </form>

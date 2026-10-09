@@ -48,7 +48,7 @@ export class UserStore {
       throw new Error('Dirección de correo electrónico inválida.');
     }
 
-    if (params.password && params.password.length < 6) {
+    if (!params.password || params.password.length < 6) {
       throw new Error('La contraseña debe contener al menos 6 caracteres.');
     }
 
@@ -56,11 +56,11 @@ export class UserStore {
       email: cleanEmail,
       password: params.password,
       name: params.name,
-      role: cleanEmail === 'muhammaddris.dd@gmail.com' ? 'admin' : 'user',
+      role: this.isAdminEmail(cleanEmail) ? 'admin' : 'user',
     });
 
     const token = this.generateToken(created.id);
-    const { passwordHash, ...safe } = created;
+    const { passwordHash, passwordSalt, ...safe } = created;
     return { user: safe, token };
   }
 
@@ -74,18 +74,50 @@ export class UserStore {
       throw new Error('No existe una cuenta con este correo.');
     }
 
-    if (user.passwordHash && password) {
-      const hash = this.db.hashPassword(password);
-      if (user.passwordHash !== hash) {
-        throw new Error('Contraseña incorrecta.');
-      }
+    // An account without a stored hash was created via Google and has no
+    // password. It must never authenticate through this path — otherwise
+    // omitting the password would mint a session token.
+    if (!user.passwordHash) {
+      throw new Error('Esta cuenta se creó sin contraseña. Inicia sesión con Google.');
+    }
+
+    if (!password) {
+      throw new Error('Debes introducir tu contraseña.');
+    }
+
+    const { ok, legacy } = this.db.verifyPassword(password, user.passwordHash);
+    if (!ok) {
+      throw new Error('Contraseña incorrecta.');
+    }
+
+    // Transparently migrate accounts still on the legacy unsalted scheme to a
+    // salted scrypt hash as soon as the plaintext is available at login.
+    if (legacy) {
+      const salt = crypto.randomBytes(16).toString('hex');
+      this.db.updateUser(user.id, {
+        passwordHash: this.db.hashPassword(password, salt),
+        passwordSalt: salt,
+      });
     }
 
     this.db.updateUser(user.id, { lastLoginAt: Date.now() });
 
     const token = this.generateToken(user.id);
-    const { passwordHash, ...safe } = user;
+    const { passwordHash, passwordSalt, ...safe } = user;
     return { user: safe, token };
+  }
+
+  /**
+   * Admin is granted only to emails listed in ADMIN_EMAILS (comma-separated).
+   * Never hardcode a personal address here: doing so would let anyone who can
+   * create or control that address obtain admin on a public deployment.
+   */
+  private isAdminEmail(email: string): boolean {
+    const configured = (process.env.ADMIN_EMAILS || '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+    return configured.includes(email.toLowerCase().trim());
   }
 
   public authenticateGoogle(profile: { email: string; name?: string; picture?: string; sub?: string }): {
@@ -99,7 +131,7 @@ export class UserStore {
       user = this.db.createUser({
         email: cleanEmail,
         name: profile.name,
-        role: cleanEmail === 'muhammaddris.dd@gmail.com' ? 'admin' : 'user',
+        role: this.isAdminEmail(cleanEmail) ? 'admin' : 'user',
       });
     }
 
@@ -108,7 +140,7 @@ export class UserStore {
     }
 
     const token = this.generateToken(user.id);
-    const { passwordHash, ...safe } = user;
+    const { passwordHash, passwordSalt, ...safe } = user;
     return { user: safe, token };
   }
 
@@ -121,6 +153,6 @@ export class UserStore {
   }
 
   public listAllUsers(): Omit<UserEntity, 'passwordHash'>[] {
-    return this.db.listUsers().map(({ passwordHash, ...safe }) => safe);
+    return this.db.listUsers().map(({ passwordHash, passwordSalt, ...safe }) => safe);
   }
 }
