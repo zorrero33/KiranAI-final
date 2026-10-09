@@ -28,14 +28,19 @@
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
 
-    --bg-primary: #09090b;
-    --bg-secondary: #121217;
-    --bg-tertiary: #181820;
-    --accent-purple: #9333ea;
+    /* KiranAI Universe Cosmic Palette */
+    --bg-primary: #050510;
+    --bg-secondary: #0c0c14;
+    --bg-tertiary: #121217;
+    --accent-purple: #7c3aed;
     --accent-violet: #8b5cf6;
     --accent-fuchsia: #c026d3;
-    --border-subtle: #272732;
+    --accent-cyan: #00d8f6;
+    --accent-pink: #ec4899;
+    --border-subtle: #1e1e2e;
     --border-active: #7c3aed;
+    --glow-purple: rgba(124, 58, 237, 0.4);
+    --glow-cyan: rgba(0, 216, 246, 0.3);
   }
 
   .dark {
@@ -113,36 +118,54 @@
   }
 }
 
-/* Custom Scrollbar for Terminal / IDE */
+/* Custom Scrollbar - Cosmic Theme */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(18, 18, 23, 0.6);
+  background: rgba(12, 12, 20, 0.8);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(124, 58, 237, 0.3);
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.4), rgba(0, 216, 246, 0.3));
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(147, 51, 234, 0.6);
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.7), rgba(0, 216, 246, 0.6));
 }
 
-/* Futuristic Subtle Glows & Terminal Elements */
+/* Glow Effects - Premium */
 .glow-purple-sm {
-  box-shadow: 0 0 15px -3px rgba(139, 92, 246, 0.25);
+  box-shadow: 0 0 15px -3px rgba(124, 58, 237, 0.35);
 }
 
 .glow-purple-md {
-  box-shadow: 0 0 25px -4px rgba(147, 51, 234, 0.35);
+  box-shadow: 0 0 25px -4px rgba(124, 58, 237, 0.5);
+}
+
+.glow-purple-lg {
+  box-shadow: 0 0 40px -6px rgba(124, 58, 237, 0.65);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 20px -4px rgba(0, 216, 246, 0.4);
+}
+
+.glow-cyan-lg {
+  box-shadow: 0 0 35px -8px rgba(0, 216, 246, 0.5);
 }
 
 .border-glow-purple {
-  border-color: rgba(139, 92, 246, 0.4);
-  box-shadow: inset 0 0 12px -2px rgba(139, 92, 246, 0.15);
+  border-color: var(--glow-purple);
+  box-shadow: inset 0 0 12px -2px rgba(124, 58, 237, 0.15), 0 0 15px -4px rgba(124, 58, 237, 0.2);
 }
 
+.border-glow-cyan {
+  border-color: var(--glow-cyan);
+  box-shadow: inset 0 0 12px -2px rgba(0, 216, 246, 0.15), 0 0 15px -4px rgba(0, 216, 246, 0.2);
+}
+
+/* Cyber Grid */
 .cyber-grid {
   background-size: 32px 32px;
   background-image: 
@@ -151,6 +174,73 @@
 }
 
 .cyber-dots {
-  background-image: radial-gradient(rgba(147, 51, 234, 0.12) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(124, 58, 237, 0.12) 1px, transparent 1px);
   background-size: 20px 20px;
+}
+
+/* Cosmic Glass Morphism */
+.glass-cosmic {
+  background: rgba(12, 12, 20, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(124, 58, 237, 0.15);
+}
+
+.glass-cosmic-lg {
+  background: rgba(12, 12, 20, 0.8);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(124, 58, 237, 0.2);
+}
+
+/* Animations */
+@keyframes cosmic-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 40px rgba(124, 58, 237, 0.6);
+  }
+}
+
+@keyframes stellar-glow {
+  0%, 100% {
+    filter: brightness(1) drop-shadow(0 0 8px rgba(0, 216, 246, 0.3));
+  }
+  50% {
+    filter: brightness(1.2) drop-shadow(0 0 16px rgba(0, 216, 246, 0.6));
+  }
+}
+
+@keyframes nebula-drift {
+  0% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(2px, -1px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+.cosmic-pulse {
+  animation: cosmic-pulse 2s ease-in-out infinite;
+}
+
+.stellar-glow {
+  animation: stellar-glow 3s ease-in-out infinite;
+}
+
+.nebula-drift {
+  animation: nebula-drift 6s ease-in-out infinite;
+}
+
+/* Prefers Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .cosmic-pulse,
+  .stellar-glow,
+  .nebula-drift {
+    animation: none;
+  }
 }

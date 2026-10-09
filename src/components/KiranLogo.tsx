@@ -31,8 +31,9 @@ export const KiranLogo: React.FC<KiranLogoProps> = ({
   };
 
   const currentSize = sizeMap[size];
+  const [imageError, setImageError] = React.useState(false);
 
-  // Pure SVG Emblem Matching the exact KiranAI uploaded brand mark
+  // Pure SVG Emblem - Official KiranAI Logo
   const EmblemSvg = (
     <svg
       viewBox="0 0 512 512"
@@ -67,7 +68,7 @@ export const KiranLogo: React.FC<KiranLogoProps> = ({
         </filter>
       </defs>
 
-      {/* If app-icon variant, render the rounded dark container matching the left icon */}
+      {/* App Icon Variant */}
       {variant === 'app-icon' && (
         <>
           <rect
@@ -86,18 +87,18 @@ export const KiranLogo: React.FC<KiranLogoProps> = ({
         </>
       )}
 
-      {/* Emblem geometric paths */}
+      {/* Emblem Geometric Paths */}
       <g transform={variant === 'app-icon' ? 'translate(48, 48) scale(0.8125)' : 'translate(0, 0)'}>
         {/* 1. Left Vertical Stem */}
         <path d="M 100,50 L 155,50 L 155,462 L 100,462 Z" fill="url(#kiranRibbonMain)" />
 
-        {/* 2. Upper Dynamic Wing (Curving to cyan tip) */}
+        {/* 2. Upper Dynamic Wing */}
         <path
           d="M 155,256 C 185,210 230,150 295,102 C 350,62 405,50 448,50 C 448,78 428,115 394,148 C 338,202 272,256 215,298 L 155,256 Z"
           fill="url(#kiranWingCyan)"
         />
 
-        {/* 3. Lower Dynamic Wing (Curving down to tip) */}
+        {/* 3. Lower Dynamic Wing */}
         <path
           d="M 155,256 C 185,302 230,362 295,410 C 350,450 405,462 448,462 C 448,434 428,397 394,364 C 338,310 272,256 215,214 L 155,256 Z"
           fill="url(#kiranRibbonMain)"
@@ -122,29 +123,27 @@ export const KiranLogo: React.FC<KiranLogoProps> = ({
     </svg>
   );
 
-  const [imageError, setImageError] = React.useState(false);
-
   return (
     <div
       onClick={onClick}
       className={`inline-flex items-center gap-2.5 select-none ${onClick ? 'cursor-pointer' : ''} ${className}`}
     >
-      {/* Emblem Icon with optional Glow */}
+      {/* Emblem Icon with Glow */}
       <div className="relative group shrink-0">
         {glow && (
           <div
-            className={`absolute -inset-1 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-400 opacity-40 blur-md group-hover:opacity-75 transition duration-500 pointer-events-none ${
-              animated ? 'animate-pulse' : ''
+            className={`absolute -inset-1 rounded-2xl bg-gradient-to-r from-purple-600 via-cyan-400 to-indigo-600 opacity-40 blur-md group-hover:opacity-75 transition duration-500 pointer-events-none ${
+              animated ? 'cosmic-pulse' : ''
             }`}
           />
         )}
 
         <div
-          className={`relative ${currentSize.box} rounded-xl overflow-hidden flex items-center justify-center transition-transform group-hover:scale-105 duration-300 shadow-lg shadow-indigo-950/40 border border-white/10`}
+          className={`relative ${currentSize.box} rounded-xl overflow-hidden flex items-center justify-center transition-transform group-hover:scale-105 duration-300 shadow-lg border border-purple-500/20`}
         >
           {!imageError ? (
             <img
-              src="/kiran-logo.jpg"
+              src="/kiran-logo.png"
               alt="Kiran AI Logo"
               className="w-full h-full object-cover"
               onError={() => setImageError(true)}
@@ -159,14 +158,10 @@ export const KiranLogo: React.FC<KiranLogoProps> = ({
       {withText && (
         <div className="flex flex-col">
           <div className="flex items-center gap-1.5">
-            <span
-              className={`font-black tracking-tight ${currentSize.textSize} text-white font-sans`}
-            >
-              Kiran<span className="text-[#00d4ff] font-extrabold">AI</span>
+            <span className={`font-black tracking-tight ${currentSize.textSize} text-white font-sans`}>
+              Kiran<span className="text-cyan-400 font-extrabold">AI</span>
             </span>
-            <span
-              className={`rounded-full bg-cyan-950/70 text-cyan-300 border border-cyan-500/30 font-mono font-semibold tracking-wider uppercase ${currentSize.badge}`}
-            >
+            <span className={`rounded-full bg-cyan-950/70 text-cyan-300 border border-cyan-500/30 font-mono font-semibold tracking-wider uppercase ${currentSize.badge}`}>
               PRO
             </span>
           </div>
